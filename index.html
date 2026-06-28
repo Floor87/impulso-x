@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#0d1712" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="IMPULSOX" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <title>IMPULSOX</title>
+    <link rel="manifest" href="./manifest.json" />
+    <link rel="apple-touch-icon" href="./icons/icon-180.png" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="Navegacion principal">
+        <div class="brand">
+          <img class="brand-logo" src="./brand/impulsox-logo.jpeg" alt="IMPULSOX" />
+          <div>
+            <h1>IMPULSOX</h1>
+            <p>Habitos, energia y constancia</p>
+          </div>
+        </div>
+
+        <nav class="tabs" aria-label="Secciones">
+          <button class="tab active" data-tab="today">Hoy</button>
+          <button class="tab" data-tab="habits">Habitos</button>
+          <button class="tab" data-tab="training">Entrenamiento</button>
+          <button class="tab" data-tab="food">Alimentacion</button>
+          <button class="tab" data-tab="water">Agua</button>
+          <button class="tab" data-tab="progress">Progreso</button>
+        </nav>
+      </aside>
+
+      <main class="content">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow" id="currentDate"></p>
+            <h2 id="sectionTitle">Tu dia de hoy</h2>
+          </div>
+          <button class="ghost-button" id="resetTodayButton" type="button">
+            Reiniciar dia
+          </button>
+          <button class="ghost-button install-button" id="installButton" type="button" hidden>
+            Instalar app
+          </button>
+        </header>
+
+        <section class="panel active" id="todayPanel" data-panel="today">
+          <div class="daily-grid">
+            <article class="summary-card accent-green">
+              <span>Habitos</span>
+              <strong id="habitSummary">0/0</strong>
+              <p>realizados hoy</p>
+            </article>
+            <article class="summary-card accent-blue">
+              <span>Agua</span>
+              <strong id="waterSummary">0%</strong>
+              <p id="waterSummaryText">0 ml de 2000 ml</p>
+            </article>
+            <article class="summary-card accent-rose">
+              <span>Entreno</span>
+              <strong id="trainingSummary">0</strong>
+              <p>rutinas completadas</p>
+            </article>
+            <article class="summary-card accent-gold">
+              <span>Comidas</span>
+              <strong id="foodSummary">0</strong>
+              <p>registros del dia</p>
+            </article>
+          </div>
+
+          <div class="split-layout">
+            <article class="section-block">
+              <div class="section-heading">
+                <h3>Checklist de hoy</h3>
+                <p>Marca lo importante sin perder tiempo.</p>
+              </div>
+              <div class="list" id="todayChecklist"></div>
+            </article>
+
+            <article class="section-block">
+              <div class="section-heading">
+                <h3>Nota diaria</h3>
+                <p>Energia, animo, sueno o cualquier detalle util.</p>
+              </div>
+              <textarea
+                id="dailyNote"
+                class="note-input"
+                placeholder="Como te sentiste hoy?"
+              ></textarea>
+            </article>
+          </div>
+        </section>
+
+        <section class="panel" id="habitsPanel" data-panel="habits">
+          <div class="two-column">
+            <form class="composer" id="habitForm">
+              <h3>Agregar habito</h3>
+              <label>
+                Nombre
+                <input id="habitName" type="text" placeholder="Ej: Leer 10 minutos" required />
+              </label>
+              <label>
+                Frecuencia
+                <select id="habitFrequency">
+                  <option value="Diario">Diario</option>
+                  <option value="Lunes a viernes">Lunes a viernes</option>
+                  <option value="3 veces por semana">3 veces por semana</option>
+                  <option value="Semanal">Semanal</option>
+                </select>
+              </label>
+              <label>
+                Hora sugerida
+                <input id="habitTime" type="time" />
+              </label>
+              <button class="primary-button" type="submit">Agregar habito</button>
+            </form>
+
+            <article class="section-block">
+              <div class="section-heading">
+                <h3>Tus habitos</h3>
+                <p>Activos para completar cada dia.</p>
+              </div>
+              <div class="list" id="habitList"></div>
+            </article>
+          </div>
+        </section>
+
+        <section class="panel" id="trainingPanel" data-panel="training">
+          <div class="two-column">
+            <form class="composer" id="trainingForm">
+              <h3>Agregar rutina</h3>
+              <label>
+                Nombre
+                <input id="trainingName" type="text" placeholder="Ej: Piernas y gluteos" required />
+              </label>
+              <label>
+                Dia
+                <select id="trainingDay">
+                  <option>Lunes</option>
+                  <option>Martes</option>
+                  <option>Miercoles</option>
+                  <option>Jueves</option>
+                  <option>Viernes</option>
+                  <option>Sabado</option>
+                  <option>Domingo</option>
+                </select>
+              </label>
+              <label>
+                Ejercicios
+                <textarea
+                  id="trainingExercises"
+                  placeholder="Sentadillas 4x12&#10;Hip thrust 4x10&#10;Peso muerto 3x10"
+                  required
+                ></textarea>
+              </label>
+              <button class="primary-button" type="submit">Guardar rutina</button>
+            </form>
+
+            <article class="section-block">
+              <div class="section-heading">
+                <h3>Rutinas</h3>
+                <p>Planifica, completa y ajusta tus entrenamientos.</p>
+              </div>
+              <div class="list" id="trainingList"></div>
+            </article>
+          </div>
+        </section>
+
+        <section class="panel" id="foodPanel" data-panel="food">
+          <div class="two-column">
+            <form class="composer" id="foodForm">
+              <h3>Registrar comida</h3>
+              <label>
+                Momento
+                <select id="mealType">
+                  <option>Desayuno</option>
+                  <option>Almuerzo</option>
+                  <option>Merienda</option>
+                  <option>Cena</option>
+                  <option>Snack</option>
+                </select>
+              </label>
+              <label>
+                Que comiste?
+                <textarea id="mealText" placeholder="Ej: Yogur, frutas y avena" required></textarea>
+              </label>
+              <label>
+                Como te sentiste?
+                <input id="mealFeeling" type="text" placeholder="Ej: Liviana, con energia" />
+              </label>
+              <button class="primary-button" type="submit">Registrar comida</button>
+            </form>
+
+            <article class="section-block">
+              <div class="section-heading">
+                <h3>Alimentacion de hoy</h3>
+                <p>Registro simple, sin complicarte con numeros.</p>
+              </div>
+              <div class="list" id="foodList"></div>
+            </article>
+          </div>
+        </section>
+
+        <section class="panel" id="waterPanel" data-panel="water">
+          <div class="water-layout">
+            <article class="water-meter">
+              <div>
+                <p class="eyebrow">Objetivo diario</p>
+                <h3 id="waterAmount">0 ml</h3>
+                <p id="waterGoalText">de 2000 ml</p>
+              </div>
+              <div class="meter-track" aria-hidden="true">
+                <div class="meter-fill" id="waterFill"></div>
+              </div>
+              <div class="quick-actions">
+                <button class="secondary-button" data-water="250" type="button">+250 ml</button>
+                <button class="secondary-button" data-water="500" type="button">+500 ml</button>
+                <button class="secondary-button" data-water="-250" type="button">-250 ml</button>
+              </div>
+            </article>
+
+            <form class="composer compact" id="waterGoalForm">
+              <h3>Configurar objetivo</h3>
+              <label>
+                Meta diaria en ml
+                <input id="waterGoalInput" type="number" min="250" step="250" />
+              </label>
+              <button class="primary-button" type="submit">Actualizar objetivo</button>
+            </form>
+          </div>
+        </section>
+
+        <section class="panel" id="progressPanel" data-panel="progress">
+          <div class="progress-layout">
+            <article class="section-block">
+              <div class="section-heading">
+                <h3>Dias anteriores</h3>
+                <p>Revisa tu avance guardado dia por dia.</p>
+              </div>
+              <div class="history-list" id="historyList"></div>
+            </article>
+
+            <article class="section-block">
+              <div class="section-heading">
+                <h3>Detalle del dia</h3>
+                <p id="historyDetailDate">Selecciona un dia para verlo.</p>
+              </div>
+              <div id="historyDetail"></div>
+            </article>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
