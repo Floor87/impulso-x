@@ -9,7 +9,8 @@
   - `52ed425 Document project deployment status`
   - `eff3054 Initial IMPULSOX app`
 - GitHub remoto: pendiente
-- Bloqueo actual: el conector de GitHub no permite crear repositorios nuevos desde cero y `gh` no esta instalado.
+- Repositorio GitHub creado: `https://github.com/Floor87/impulso-x`
+- Bloqueo actual: GitHub devuelve `403 Resource not accessible by integration` al intentar escribir archivos. El repo existe, pero la integracion de Codex/GitHub no tiene acceso de escritura instalado para ese repositorio.
 
 ## Supabase
 
