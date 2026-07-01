@@ -11,6 +11,8 @@
 - GitHub remoto: pendiente
 - Repositorio GitHub creado: `https://github.com/Floor87/impulso-x`
 - Bloqueo actual: GitHub devuelve `403 Resource not accessible by integration` al intentar escribir archivos. El repo existe, pero la integracion de Codex/GitHub no tiene acceso de escritura instalado para ese repositorio.
+- Remoto local configurado: `https://github.com/Floor87/impulso-x.git`
+- Push por terminal: bloqueado porque GitHub solicita credenciales y no hay una sesion local autenticada disponible.
 
 ## Supabase
 
