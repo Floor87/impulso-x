@@ -235,6 +235,29 @@
         </section>
 
         <section class="panel" id="progressPanel" data-panel="progress">
+          <div class="daily-grid progress-summary-grid">
+            <article class="summary-card accent-green">
+              <span>Semana</span>
+              <strong id="weeklyScoreSummary">0%</strong>
+              <p>promedio de avance</p>
+            </article>
+            <article class="summary-card accent-blue">
+              <span>Agua</span>
+              <strong id="weeklyWaterSummary">0 ml</strong>
+              <p>promedio diario</p>
+            </article>
+            <article class="summary-card accent-rose">
+              <span>Entreno</span>
+              <strong id="weeklyTrainingSummary">0</strong>
+              <p>rutinas en 7 dias</p>
+            </article>
+            <article class="summary-card accent-gold">
+              <span>Racha</span>
+              <strong id="bestStreakSummary">0</strong>
+              <p>dias completos seguidos</p>
+            </article>
+          </div>
+
           <div class="progress-layout">
             <article class="section-block">
               <div class="section-heading">
@@ -252,6 +275,23 @@
               <div id="historyDetail"></div>
             </article>
           </div>
+
+          <article class="section-block backup-block">
+            <div class="section-heading">
+              <h3>Respaldo</h3>
+              <p>Guarda o recupera tus datos de IMPULSOX.</p>
+            </div>
+            <div class="backup-actions">
+              <button class="secondary-button" id="exportDataButton" type="button">
+                Descargar respaldo
+              </button>
+              <label class="file-button">
+                Importar respaldo
+                <input id="importDataInput" type="file" accept="application/json" />
+              </label>
+            </div>
+            <p class="helper-text" id="backupStatus">Tus datos se guardan en este navegador.</p>
+          </article>
         </section>
       </main>
     </div>

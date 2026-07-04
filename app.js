@@ -82,6 +82,13 @@ const foodSummary = document.querySelector("#foodSummary");
 const historyList = document.querySelector("#historyList");
 const historyDetail = document.querySelector("#historyDetail");
 const historyDetailDate = document.querySelector("#historyDetailDate");
+const weeklyScoreSummary = document.querySelector("#weeklyScoreSummary");
+const weeklyWaterSummary = document.querySelector("#weeklyWaterSummary");
+const weeklyTrainingSummary = document.querySelector("#weeklyTrainingSummary");
+const bestStreakSummary = document.querySelector("#bestStreakSummary");
+const exportDataButton = document.querySelector("#exportDataButton");
+const importDataInput = document.querySelector("#importDataInput");
+const backupStatus = document.querySelector("#backupStatus");
 
 let selectedHistoryDate = currentDayKey;
 
@@ -147,6 +154,7 @@ function render() {
   renderWater(day);
   renderSummary(day);
   renderHistory();
+  renderProgressSummary();
   saveState();
 }
 
@@ -174,10 +182,11 @@ function renderHabits(day) {
 
   state.habits.forEach((habit) => {
     const done = Boolean(day.habitsDone[habit.id]);
+    const streak = getHabitStreak(habit.id);
     habitList.append(
       itemElement({
         title: habit.name,
-        meta: `${habit.frequency}${habit.time ? ` · ${habit.time}` : ""}`,
+        meta: `${habit.frequency}${habit.time ? ` · ${habit.time}` : ""} · Racha ${streak}`,
         done,
         onToggle: () => toggleHabit(habit.id),
         onDelete: () => deleteHabit(habit.id),
@@ -187,7 +196,7 @@ function renderHabits(day) {
     todayChecklist.append(
       itemElement({
         title: habit.name,
-        meta: `Habito · ${habit.frequency}`,
+        meta: `Habito · ${habit.frequency} · Racha ${streak}`,
         done,
         onToggle: () => toggleHabit(habit.id),
       }),
@@ -308,6 +317,26 @@ function renderHistory() {
   historyDetail.append(details, text);
 }
 
+function renderProgressSummary() {
+  const lastSevenKeys = getRecentDateKeys(7);
+  const existingDays = lastSevenKeys.map((key) => state.days[key]).filter(Boolean);
+  const scores = existingDays.map((day) => getDayStats(day).score);
+  const totalWater = existingDays.reduce((sum, day) => sum + (day.water || 0), 0);
+  const totalTraining = existingDays.reduce(
+    (sum, day) => sum + getDayStats(day).completedRoutines,
+    0,
+  );
+  const averageScore = scores.length
+    ? Math.round(scores.reduce((sum, score) => sum + score, 0) / scores.length)
+    : 0;
+  const averageWater = existingDays.length ? Math.round(totalWater / existingDays.length) : 0;
+
+  weeklyScoreSummary.textContent = `${averageScore}%`;
+  weeklyWaterSummary.textContent = `${averageWater} ml`;
+  weeklyTrainingSummary.textContent = totalTraining;
+  bestStreakSummary.textContent = getPerfectDayStreak();
+}
+
 function getDayStats(day) {
   const totalHabits = state.habits.length;
   const completedHabits = state.habits.filter((habit) => day.habitsDone[habit.id]).length;
@@ -325,6 +354,57 @@ function getDayStats(day) {
     waterPercent,
     score,
   };
+}
+
+function getRecentDateKeys(amount) {
+  const keys = [];
+  const date = new Date();
+  for (let index = 0; index < amount; index += 1) {
+    const copy = new Date(date);
+    copy.setDate(date.getDate() - index);
+    const year = copy.getFullYear();
+    const month = String(copy.getMonth() + 1).padStart(2, "0");
+    const day = String(copy.getDate()).padStart(2, "0");
+    keys.push(`${year}-${month}-${day}`);
+  }
+  return keys;
+}
+
+function getHabitStreak(habitId) {
+  let streak = 0;
+  const date = new Date();
+
+  while (true) {
+    const key = getDateKeyFromDate(date);
+    const day = state.days[key];
+    if (!day || !day.habitsDone[habitId]) break;
+    streak += 1;
+    date.setDate(date.getDate() - 1);
+  }
+
+  return streak;
+}
+
+function getPerfectDayStreak() {
+  let streak = 0;
+  const date = new Date();
+
+  while (true) {
+    const key = getDateKeyFromDate(date);
+    const day = state.days[key];
+    if (!day || getDayStats(day).score < 100) break;
+    streak += 1;
+    date.setDate(date.getDate() - 1);
+  }
+
+  return streak;
+}
+
+function getDateKeyFromDate(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 function formatDateKey(key) {
@@ -502,6 +582,46 @@ resetTodayButton.addEventListener("click", () => {
     note: "",
   };
   render();
+});
+
+exportDataButton.addEventListener("click", () => {
+  const payload = {
+    app: "IMPULSOX",
+    exportedAt: new Date().toISOString(),
+    state,
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `impulsox-respaldo-${currentDayKey}.json`;
+  link.click();
+  URL.revokeObjectURL(url);
+  backupStatus.textContent = "Respaldo descargado.";
+});
+
+importDataInput.addEventListener("change", async () => {
+  const file = importDataInput.files[0];
+  if (!file) return;
+
+  try {
+    const text = await file.text();
+    const backup = JSON.parse(text);
+    const importedState = backup.state || backup;
+    if (!importedState.days || !Array.isArray(importedState.habits)) {
+      throw new Error("Formato invalido");
+    }
+
+    state = { ...structuredClone(defaultState), ...importedState };
+    selectedHistoryDate = currentDayKey;
+    saveState();
+    render();
+    backupStatus.textContent = "Respaldo importado correctamente.";
+  } catch {
+    backupStatus.textContent = "No se pudo importar ese archivo.";
+  } finally {
+    importDataInput.value = "";
+  }
 });
 
 setActiveTab(activeTab);
