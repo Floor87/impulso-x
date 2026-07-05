@@ -5,13 +5,13 @@ const legacyStorageKey = "ritmo-diario-state";
 const defaultState = {
   habits: [
     {
-      id: crypto.randomUUID(),
+      id: createId(),
       name: "Tomar agua al despertar",
       frequency: "Diario",
       time: "08:00",
     },
     {
-      id: crypto.randomUUID(),
+      id: createId(),
       name: "Mover el cuerpo 20 minutos",
       frequency: "Diario",
       time: "18:00",
@@ -19,7 +19,7 @@ const defaultState = {
   ],
   routines: [
     {
-      id: crypto.randomUUID(),
+      id: createId(),
       name: "Piernas y gluteos",
       day: "Lunes",
       exercises: "Sentadillas 4x12\nHip thrust 4x10\nPeso muerto 3x10",
@@ -91,6 +91,14 @@ const importDataInput = document.querySelector("#importDataInput");
 const backupStatus = document.querySelector("#backupStatus");
 
 let selectedHistoryDate = currentDayKey;
+
+function createId() {
+  if (window.crypto && typeof window.crypto.randomUUID === "function") {
+    return window.crypto.randomUUID();
+  }
+
+  return `id-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
 
 function loadState() {
   const saved = localStorage.getItem(storageKey) || localStorage.getItem(legacyStorageKey);
@@ -512,7 +520,7 @@ habitForm.addEventListener("submit", (event) => {
   if (!name) return;
 
   state.habits.push({
-    id: crypto.randomUUID(),
+    id: createId(),
     name,
     frequency: habitFrequency.value,
     time: habitTime.value,
@@ -528,7 +536,7 @@ trainingForm.addEventListener("submit", (event) => {
   if (!name || !exercises) return;
 
   state.routines.push({
-    id: crypto.randomUUID(),
+    id: createId(),
     name,
     day: trainingDay.value,
     exercises,
@@ -545,7 +553,7 @@ foodForm.addEventListener("submit", (event) => {
 
   const day = getDay();
   day.meals.push({
-    id: crypto.randomUUID(),
+    id: createId(),
     type: mealType.value,
     text,
     feeling,
