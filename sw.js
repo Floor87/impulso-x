@@ -1,4 +1,4 @@
-const CACHE_NAME = "impulsox-v6";
+const CACHE_NAME = "impulsox-v7";
 const APP_ASSETS = [
   "./",
   "./index.html",
@@ -6,6 +6,7 @@ const APP_ASSETS = [
   "./app.js",
   "./manifest.json",
   "./brand/impulsox-logo.jpeg",
+  "./brand/impulsox-logo-transparent.png",
   "./icons/icon-180.png",
   "./icons/icon-192.png",
   "./icons/icon-512.png",

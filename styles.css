@@ -44,9 +44,11 @@ body.intro-active {
   min-height: 100dvh;
   padding: calc(34px + env(safe-area-inset-top)) 24px calc(30px + env(safe-area-inset-bottom));
   background:
-    radial-gradient(circle at 73% 49%, rgba(255, 196, 21, 0.14), transparent 14%),
+    radial-gradient(circle at 72% 48%, rgba(255, 196, 21, 0.12), transparent 13%),
+    radial-gradient(circle at 50% 52%, rgba(255, 255, 255, 0.08), transparent 22%),
     #000;
   color: #fff;
+  overflow: hidden;
 }
 
 .intro-screen.hidden {
@@ -59,18 +61,22 @@ body.intro-active {
 }
 
 .intro-content {
+  position: relative;
+  z-index: 2;
   display: grid;
   place-items: center;
   align-content: center;
-  gap: 20px;
+  gap: 14px;
   min-height: 0;
 }
 
 .intro-logo {
-  width: min(78vw, 760px);
-  max-height: 48vh;
+  width: min(82vw, 820px);
+  max-height: 34vh;
   object-fit: contain;
-  filter: drop-shadow(0 0 24px rgba(255, 255, 255, 0.1));
+  filter:
+    drop-shadow(0 0 18px rgba(255, 255, 255, 0.16))
+    drop-shadow(0 0 28px rgba(255, 204, 24, 0.08));
 }
 
 .intro-phrase {
@@ -81,9 +87,12 @@ body.intro-active {
   font-weight: 600;
   line-height: 1.45;
   text-align: center;
+  text-shadow: 0 0 14px rgba(255, 255, 255, 0.12);
 }
 
 .intro-button {
+  position: relative;
+  z-index: 2;
   width: min(100%, 360px);
   min-height: 54px;
   justify-self: center;
@@ -97,6 +106,57 @@ body.intro-active {
 
 .intro-button:active {
   transform: translateY(1px);
+}
+
+.particle-field {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.particle-field span {
+  position: absolute;
+  left: var(--x);
+  bottom: -18px;
+  width: var(--size);
+  height: var(--size);
+  border-radius: 999px;
+  background: var(--particle-color);
+  box-shadow: 0 0 14px var(--particle-glow);
+  opacity: 0;
+  animation: particle-rise var(--duration) linear infinite;
+  animation-delay: var(--delay);
+}
+
+.particle-field span:nth-child(3n) {
+  filter: blur(0.8px);
+}
+
+.particle-field span:nth-child(4n) {
+  border-radius: 2px;
+  transform: rotate(45deg);
+}
+
+@keyframes particle-rise {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 0, 0) scale(0.7);
+  }
+
+  14% {
+    opacity: var(--opacity);
+  }
+
+  82% {
+    opacity: var(--opacity);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate3d(var(--drift), -106vh, 0) scale(1.25);
+  }
 }
 
 button,
@@ -133,11 +193,11 @@ button {
 }
 
 .brand-logo {
-  width: 82px;
+  width: 104px;
   height: 48px;
-  object-fit: cover;
-  border-radius: 8px;
-  background: #000;
+  object-fit: contain;
+  border-radius: 0;
+  background: transparent;
 }
 
 .brand h1,
@@ -696,8 +756,8 @@ textarea:focus {
   }
 
   .intro-logo {
-    width: min(90vw, 460px);
-    max-height: 40vh;
+    width: min(92vw, 520px);
+    max-height: 30vh;
   }
 
   .sidebar {

@@ -44,6 +44,7 @@ const sectionTitles = {
 const tabs = document.querySelectorAll(".tab");
 const panels = document.querySelectorAll(".panel");
 const introScreen = document.querySelector("#introScreen");
+const particleField = document.querySelector("#particleField");
 const startAppButton = document.querySelector("#startAppButton");
 const sectionTitle = document.querySelector("#sectionTitle");
 const currentDate = document.querySelector("#currentDate");
@@ -94,12 +95,41 @@ const backupStatus = document.querySelector("#backupStatus");
 
 let selectedHistoryDate = currentDayKey;
 
+createIntroParticles();
+
 function createId() {
   if (window.crypto && typeof window.crypto.randomUUID === "function") {
     return window.crypto.randomUUID();
   }
 
   return `id-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function createIntroParticles() {
+  const particleCount = 42;
+  const fragment = document.createDocumentFragment();
+
+  for (let index = 0; index < particleCount; index += 1) {
+    const particle = document.createElement("span");
+    const golden = index % 3 !== 0;
+    particle.style.setProperty("--x", `${Math.round(Math.random() * 100)}%`);
+    particle.style.setProperty("--size", `${Math.random() * 4 + 2}px`);
+    particle.style.setProperty("--duration", `${Math.random() * 6 + 7}s`);
+    particle.style.setProperty("--delay", `${Math.random() * -11}s`);
+    particle.style.setProperty("--drift", `${Math.random() * 90 - 45}px`);
+    particle.style.setProperty("--opacity", `${Math.random() * 0.38 + 0.26}`);
+    particle.style.setProperty(
+      "--particle-color",
+      golden ? "rgba(255, 205, 35, 0.92)" : "rgba(255, 255, 255, 0.82)",
+    );
+    particle.style.setProperty(
+      "--particle-glow",
+      golden ? "rgba(255, 205, 35, 0.7)" : "rgba(255, 255, 255, 0.45)",
+    );
+    fragment.append(particle);
+  }
+
+  particleField.append(fragment);
 }
 
 function loadState() {
