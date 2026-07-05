@@ -43,6 +43,8 @@ const sectionTitles = {
 
 const tabs = document.querySelectorAll(".tab");
 const panels = document.querySelectorAll(".panel");
+const introScreen = document.querySelector("#introScreen");
+const startAppButton = document.querySelector("#startAppButton");
 const sectionTitle = document.querySelector("#sectionTitle");
 const currentDate = document.querySelector("#currentDate");
 const resetTodayButton = document.querySelector("#resetTodayButton");
@@ -512,6 +514,12 @@ function deleteMeal(id) {
 
 tabs.forEach((tab) => {
   tab.addEventListener("click", () => setActiveTab(tab.dataset.tab));
+});
+
+startAppButton.addEventListener("click", () => {
+  introScreen.classList.add("hidden");
+  document.body.classList.remove("intro-active");
+  window.setTimeout(() => introScreen.remove(), 380);
 });
 
 habitForm.addEventListener("submit", (event) => {

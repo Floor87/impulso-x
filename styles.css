@@ -30,6 +30,75 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
+body.intro-active {
+  overflow: hidden;
+  background: #000;
+}
+
+.intro-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  grid-template-rows: 1fr auto;
+  min-height: 100dvh;
+  padding: calc(34px + env(safe-area-inset-top)) 24px calc(30px + env(safe-area-inset-bottom));
+  background:
+    radial-gradient(circle at 73% 49%, rgba(255, 196, 21, 0.14), transparent 14%),
+    #000;
+  color: #fff;
+}
+
+.intro-screen.hidden {
+  pointer-events: none;
+  opacity: 0;
+  transform: scale(1.015);
+  transition:
+    opacity 0.35s ease,
+    transform 0.35s ease;
+}
+
+.intro-content {
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 20px;
+  min-height: 0;
+}
+
+.intro-logo {
+  width: min(78vw, 760px);
+  max-height: 48vh;
+  object-fit: contain;
+  filter: drop-shadow(0 0 24px rgba(255, 255, 255, 0.1));
+}
+
+.intro-phrase {
+  max-width: 520px;
+  margin: 0;
+  color: rgba(255, 255, 255, 0.78);
+  font-size: clamp(0.86rem, 2.8vw, 1rem);
+  font-weight: 600;
+  line-height: 1.45;
+  text-align: center;
+}
+
+.intro-button {
+  width: min(100%, 360px);
+  min-height: 54px;
+  justify-self: center;
+  border: 1px solid rgba(255, 204, 36, 0.7);
+  border-radius: 999px;
+  background: #ffcc18;
+  color: #090909;
+  box-shadow: 0 14px 40px rgba(255, 204, 24, 0.22);
+  font-weight: 900;
+}
+
+.intro-button:active {
+  transform: translateY(1px);
+}
+
 button,
 input,
 select,
@@ -620,6 +689,15 @@ textarea:focus {
 
   .app-shell {
     min-height: 100dvh;
+  }
+
+  .intro-screen {
+    padding: calc(24px + env(safe-area-inset-top)) 18px calc(24px + env(safe-area-inset-bottom));
+  }
+
+  .intro-logo {
+    width: min(90vw, 460px);
+    max-height: 40vh;
   }
 
   .sidebar {
