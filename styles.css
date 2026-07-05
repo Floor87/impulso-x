@@ -193,11 +193,11 @@ button {
 }
 
 .brand-logo {
-  width: 104px;
+  width: 196px;
   height: 48px;
-  object-fit: contain;
-  border-radius: 0;
-  background: transparent;
+  object-fit: cover;
+  border-radius: 8px;
+  background: #000;
 }
 
 .brand h1,
