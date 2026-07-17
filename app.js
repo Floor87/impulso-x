@@ -46,6 +46,8 @@ const panels = document.querySelectorAll(".panel");
 const introScreen = document.querySelector("#introScreen");
 const particleField = document.querySelector("#particleField");
 const startAppButton = document.querySelector("#startAppButton");
+const themeToggle = document.querySelector("#themeToggle");
+const themeLabel = document.querySelector("#themeLabel");
 const sectionTitle = document.querySelector("#sectionTitle");
 const currentDate = document.querySelector("#currentDate");
 const resetTodayButton = document.querySelector("#resetTodayButton");
@@ -89,12 +91,16 @@ const weeklyScoreSummary = document.querySelector("#weeklyScoreSummary");
 const weeklyWaterSummary = document.querySelector("#weeklyWaterSummary");
 const weeklyTrainingSummary = document.querySelector("#weeklyTrainingSummary");
 const bestStreakSummary = document.querySelector("#bestStreakSummary");
+const calendarMonthLabel = document.querySelector("#calendarMonthLabel");
+const monthlyCalendar = document.querySelector("#monthlyCalendar");
+const weeklyGoalList = document.querySelector("#weeklyGoalList");
 const exportDataButton = document.querySelector("#exportDataButton");
 const importDataInput = document.querySelector("#importDataInput");
 const backupStatus = document.querySelector("#backupStatus");
 
 let selectedHistoryDate = currentDayKey;
 
+applyTheme(loadTheme());
 createIntroParticles();
 
 function createId() {
@@ -130,6 +136,18 @@ function createIntroParticles() {
   }
 
   particleField.append(fragment);
+}
+
+function loadTheme() {
+  return localStorage.getItem("impulsox-theme") || "light";
+}
+
+function applyTheme(theme) {
+  const nextTheme = theme === "dark" ? "dark" : "light";
+  document.body.dataset.theme = nextTheme;
+  themeToggle.checked = nextTheme === "dark";
+  themeLabel.textContent = nextTheme === "dark" ? "Oscuro" : "Claro";
+  localStorage.setItem("impulsox-theme", nextTheme);
 }
 
 function loadState() {
@@ -195,6 +213,8 @@ function render() {
   renderSummary(day);
   renderHistory();
   renderProgressSummary();
+  renderMonthlyCalendar();
+  renderWeeklyGoals();
   saveState();
 }
 
@@ -377,6 +397,104 @@ function renderProgressSummary() {
   bestStreakSummary.textContent = getPerfectDayStreak();
 }
 
+function renderMonthlyCalendar() {
+  monthlyCalendar.innerHTML = "";
+
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = today.getMonth();
+  const firstDay = new Date(year, month, 1);
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const firstWeekday = (firstDay.getDay() + 6) % 7;
+  const todayKey = getDateKeyFromDate(today);
+
+  calendarMonthLabel.textContent = new Intl.DateTimeFormat("es-AR", {
+    month: "long",
+    year: "numeric",
+  }).format(firstDay);
+
+  for (let index = 0; index < firstWeekday; index += 1) {
+    const blank = document.createElement("span");
+    blank.className = "calendar-day placeholder";
+    monthlyCalendar.append(blank);
+  }
+
+  for (let dayNumber = 1; dayNumber <= daysInMonth; dayNumber += 1) {
+    const date = new Date(year, month, dayNumber);
+    const key = getDateKeyFromDate(date);
+    const day = state.days[key];
+    const stats = day ? getDayStats(day) : null;
+    const button = document.createElement("button");
+    const level = getCalendarLevel(stats);
+
+    button.className = `calendar-day ${level}${key === todayKey ? " today" : ""}`;
+    button.type = "button";
+    button.textContent = dayNumber;
+    button.ariaLabel = stats
+      ? `${formatDateKey(key)}, avance ${stats.score}%`
+      : `${formatDateKey(key)}, sin datos`;
+    button.disabled = !day;
+
+    if (day) {
+      button.addEventListener("click", () => {
+        selectedHistoryDate = key;
+        setActiveTab("progress");
+        renderHistory();
+      });
+    }
+
+    monthlyCalendar.append(button);
+  }
+}
+
+function renderWeeklyGoals() {
+  weeklyGoalList.innerHTML = "";
+
+  const lastSevenKeys = getRecentDateKeys(7);
+  const recentDays = lastSevenKeys.map((key) => state.days[key]).filter(Boolean);
+  const habitTarget = Math.max(state.habits.length * 7, 1);
+  const completedHabits = lastSevenKeys.reduce((sum, key) => {
+    const day = state.days[key];
+    if (!day) return sum;
+    return sum + state.habits.filter((habit) => day.habitsDone[habit.id]).length;
+  }, 0);
+  const waterDays = lastSevenKeys.filter((key) => (state.days[key]?.water || 0) >= state.waterGoal).length;
+  const trainingCount = recentDays.reduce((sum, day) => sum + getDayStats(day).completedRoutines, 0);
+  const foodDays = lastSevenKeys.filter((key) => (state.days[key]?.meals || []).length > 0).length;
+
+  weeklyGoalList.append(
+    goalElement("Habitos", completedHabits, habitTarget, "80% o mas completados"),
+    goalElement("Agua", waterDays, 7, "dias llegando a tu meta"),
+    goalElement("Entreno", trainingCount, 4, "rutinas completadas"),
+    goalElement("Alimentacion", foodDays, 5, "dias con comidas registradas"),
+  );
+}
+
+function getCalendarLevel(stats) {
+  if (!stats) return "empty";
+  if (stats.score >= 80) return "high";
+  if (stats.score >= 45) return "medium";
+  if (stats.score > 0) return "low";
+  return "empty";
+}
+
+function goalElement(label, value, target, meta) {
+  const percent = Math.min(Math.round((value / target) * 100), 100);
+  const card = document.createElement("article");
+  card.className = "goal-card";
+  card.innerHTML = `
+    <div>
+      <span>${label}</span>
+      <strong>${value}/${target}</strong>
+    </div>
+    <div class="goal-bar" aria-hidden="true">
+      <span style="width: ${percent}%"></span>
+    </div>
+    <p>${meta}</p>
+  `;
+  return card;
+}
+
 function getDayStats(day) {
   const totalHabits = state.habits.length;
   const completedHabits = state.habits.filter((habit) => day.habitsDone[habit.id]).length;
@@ -544,6 +662,10 @@ function deleteMeal(id) {
 
 tabs.forEach((tab) => {
   tab.addEventListener("click", () => setActiveTab(tab.dataset.tab));
+});
+
+themeToggle.addEventListener("change", () => {
+  applyTheme(themeToggle.checked ? "dark" : "light");
 });
 
 startAppButton.addEventListener("click", () => {

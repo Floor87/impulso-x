@@ -49,12 +49,21 @@
             <p class="eyebrow" id="currentDate"></p>
             <h2 id="sectionTitle">Tu dia de hoy</h2>
           </div>
-          <button class="ghost-button" id="resetTodayButton" type="button">
-            Reiniciar dia
-          </button>
-          <button class="ghost-button install-button" id="installButton" type="button" hidden>
-            Instalar app
-          </button>
+          <div class="topbar-actions">
+            <label class="theme-switch" for="themeToggle">
+              <input id="themeToggle" type="checkbox" />
+              <span class="switch-track" aria-hidden="true">
+                <span class="switch-thumb"></span>
+              </span>
+              <span id="themeLabel">Claro</span>
+            </label>
+            <button class="ghost-button" id="resetTodayButton" type="button">
+              Reiniciar dia
+            </button>
+            <button class="ghost-button install-button" id="installButton" type="button" hidden>
+              Instalar app
+            </button>
+          </div>
         </header>
 
         <section class="panel active" id="todayPanel" data-panel="today">
@@ -264,6 +273,38 @@
               <span>Racha</span>
               <strong id="bestStreakSummary">0</strong>
               <p>dias completos seguidos</p>
+            </article>
+          </div>
+
+          <div class="progress-tools">
+            <article class="section-block calendar-block">
+              <div class="section-heading">
+                <h3>Calendario mensual</h3>
+                <p id="calendarMonthLabel">Este mes</p>
+              </div>
+              <div class="calendar-grid calendar-weekdays" aria-hidden="true">
+                <span>L</span>
+                <span>M</span>
+                <span>M</span>
+                <span>J</span>
+                <span>V</span>
+                <span>S</span>
+                <span>D</span>
+              </div>
+              <div class="calendar-grid monthly-calendar" id="monthlyCalendar"></div>
+              <div class="calendar-legend" aria-label="Referencia del calendario">
+                <span><i class="legend-dot high"></i>Fuerte</span>
+                <span><i class="legend-dot medium"></i>Medio</span>
+                <span><i class="legend-dot low"></i>Bajo</span>
+              </div>
+            </article>
+
+            <article class="section-block goals-block">
+              <div class="section-heading">
+                <h3>Objetivos semanales</h3>
+                <p>Tu avance de los ultimos 7 dias.</p>
+              </div>
+              <div class="goal-list" id="weeklyGoalList"></div>
             </article>
           </div>
 
