@@ -73,9 +73,11 @@ const mealFeeling = document.querySelector("#mealFeeling");
 const foodList = document.querySelector("#foodList");
 
 const dailyNote = document.querySelector("#dailyNote");
+const waterMeter = document.querySelector(".water-meter");
 const waterAmount = document.querySelector("#waterAmount");
 const waterGoalText = document.querySelector("#waterGoalText");
 const waterFill = document.querySelector("#waterFill");
+const waterGoalBurst = document.querySelector("#waterGoalBurst");
 const waterGoalForm = document.querySelector("#waterGoalForm");
 const waterGoalInput = document.querySelector("#waterGoalInput");
 
@@ -630,6 +632,21 @@ function emptyState(text) {
   return element;
 }
 
+function celebrateWaterGoal() {
+  if (navigator.vibrate) navigator.vibrate([45, 35, 65]);
+
+  waterMeter.classList.remove("celebrate");
+  waterGoalBurst.classList.remove("show");
+  void waterMeter.offsetWidth;
+  waterMeter.classList.add("celebrate");
+  waterGoalBurst.classList.add("show");
+
+  window.setTimeout(() => {
+    waterMeter.classList.remove("celebrate");
+    waterGoalBurst.classList.remove("show");
+  }, 1400);
+}
+
 function normalizeTime(value) {
   const trimmed = value.trim().toLowerCase();
   if (!trimmed) return "";
@@ -758,15 +775,21 @@ dailyNote.addEventListener("input", () => {
 document.querySelectorAll("[data-water]").forEach((button) => {
   button.addEventListener("click", () => {
     const day = getDay();
-    day.water = Math.max(0, day.water + Number(button.dataset.water));
+    const wasComplete = day.water >= state.waterGoal;
+    const waterChange = Number(button.dataset.water);
+    day.water = Math.max(0, day.water + waterChange);
     render();
+    if (!wasComplete && waterChange > 0 && day.water >= state.waterGoal) celebrateWaterGoal();
   });
 });
 
 waterGoalForm.addEventListener("submit", (event) => {
   event.preventDefault();
+  const day = getDay();
+  const wasComplete = day.water >= state.waterGoal;
   state.waterGoal = Math.max(250, Number(waterGoalInput.value) || 2000);
   render();
+  if (!wasComplete && day.water >= state.waterGoal) celebrateWaterGoal();
 });
 
 resetTodayButton.addEventListener("click", () => {

@@ -159,6 +159,18 @@ body.intro-active {
   }
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .water-meter.celebrate,
+  .water-meter.celebrate .meter-fill,
+  .goal-burst.show,
+  .goal-burst.show::before,
+  .goal-burst.show span,
+  .goal-burst.show strong {
+    animation-duration: 0.01ms;
+    animation-iteration-count: 1;
+  }
+}
+
 button,
 input,
 select,
@@ -597,13 +609,109 @@ textarea:focus {
 
 .water-meter {
   display: grid;
+  position: relative;
   gap: 24px;
+  overflow: hidden;
 }
 
 .water-meter h3 {
   margin-top: 6px;
   font-size: clamp(3rem, 10vw, 6rem);
   line-height: 0.95;
+}
+
+.water-meter.celebrate {
+  animation: water-card-pop 0.55s ease;
+}
+
+.water-meter.celebrate .meter-fill {
+  animation: water-fill-glow 1s ease;
+}
+
+.goal-burst {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  opacity: 0;
+}
+
+.goal-burst::before {
+  position: absolute;
+  inset: 18%;
+  border-radius: 999px;
+  background:
+    radial-gradient(circle, rgba(255, 204, 24, 0.62), transparent 58%),
+    radial-gradient(circle, rgba(73, 194, 139, 0.42), transparent 66%);
+  content: "";
+  filter: blur(3px);
+  transform: scale(0.2);
+}
+
+.goal-burst span {
+  position: absolute;
+  width: 11px;
+  height: 11px;
+  border-radius: 999px;
+  background: var(--gold);
+  box-shadow: 0 0 18px rgba(255, 204, 24, 0.72);
+}
+
+.goal-burst span:nth-child(1) {
+  top: 24%;
+  left: 28%;
+}
+
+.goal-burst span:nth-child(2) {
+  top: 30%;
+  right: 26%;
+  background: var(--green);
+}
+
+.goal-burst span:nth-child(3) {
+  right: 42%;
+  bottom: 26%;
+}
+
+.goal-burst strong {
+  position: relative;
+  display: inline-grid;
+  min-height: 48px;
+  place-items: center;
+  padding: 10px 16px;
+  border-radius: 999px;
+  background: #ffcc18;
+  color: #08100c;
+  box-shadow: 0 16px 42px rgba(255, 204, 24, 0.35);
+  font-size: clamp(1rem, 4vw, 1.35rem);
+  font-weight: 900;
+  transform: translateY(10px) scale(0.92);
+}
+
+.goal-burst.show {
+  animation: burst-layer 1.25s ease forwards;
+}
+
+.goal-burst.show::before {
+  animation: burst-flash 0.9s ease forwards;
+}
+
+.goal-burst.show span {
+  animation: burst-spark 1s ease forwards;
+}
+
+.goal-burst.show span:nth-child(2) {
+  animation-delay: 0.05s;
+}
+
+.goal-burst.show span:nth-child(3) {
+  animation-delay: 0.1s;
+}
+
+.goal-burst.show strong {
+  animation: burst-label 1.18s ease forwards;
 }
 
 .meter-track {
@@ -619,6 +727,94 @@ textarea:focus {
   border-radius: inherit;
   background: linear-gradient(90deg, var(--blue), var(--green));
   transition: width 0.25s ease;
+}
+
+@keyframes water-card-pop {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+
+  42% {
+    transform: scale(1.012);
+  }
+}
+
+@keyframes water-fill-glow {
+  0%,
+  100% {
+    filter: none;
+  }
+
+  45% {
+    filter: brightness(1.24) saturate(1.2);
+  }
+}
+
+@keyframes burst-layer {
+  0% {
+    opacity: 0;
+  }
+
+  12%,
+  72% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes burst-flash {
+  0% {
+    opacity: 0;
+    transform: scale(0.25);
+  }
+
+  45% {
+    opacity: 1;
+    transform: scale(1.25);
+  }
+
+  100% {
+    opacity: 0;
+    transform: scale(1.8);
+  }
+}
+
+@keyframes burst-spark {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 0, 0) scale(0.6);
+  }
+
+  28% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate3d(0, -46px, 0) scale(1.5);
+  }
+}
+
+@keyframes burst-label {
+  0% {
+    opacity: 0;
+    transform: translateY(10px) scale(0.92);
+  }
+
+  18%,
+  70% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.96);
+  }
 }
 
 .quick-actions {
