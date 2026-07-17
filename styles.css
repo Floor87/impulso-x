@@ -968,10 +968,26 @@ body[data-theme="dark"] .file-button {
   background: rgba(17, 23, 20, 0.86);
 }
 
+body[data-theme="dark"] .tab.active,
+body[data-theme="dark"] .tab:hover {
+  background: #f3f7f4;
+  color: #08100c;
+}
+
 body[data-theme="dark"] .item,
 body[data-theme="dark"] .history-day,
 body[data-theme="dark"] .history-notes p {
   background: #101613;
+}
+
+body[data-theme="dark"] .history-day.active {
+  border-color: #f3f7f4;
+  background: #f3f7f4;
+  color: #08100c;
+}
+
+body[data-theme="dark"] .history-day.active small {
+  color: rgba(8, 16, 12, 0.68);
 }
 
 body[data-theme="dark"] .item.done {
