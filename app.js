@@ -630,6 +630,33 @@ function emptyState(text) {
   return element;
 }
 
+function normalizeTime(value) {
+  const trimmed = value.trim().toLowerCase();
+  if (!trimmed) return "";
+
+  const compact = trimmed
+    .replaceAll(".", "")
+    .replace(/\s+/g, " ")
+    .replace("a m", "am")
+    .replace("p m", "pm");
+  const match = compact.match(/^(\d{1,2})(?::([0-5]\d))?\s*(am|pm)?$/);
+  if (!match) return trimmed;
+
+  let hour = Number(match[1]);
+  const minute = match[2] || "00";
+  const period = match[3];
+
+  if (period) {
+    if (hour < 1 || hour > 12) return trimmed;
+    if (period === "pm" && hour < 12) hour += 12;
+    if (period === "am" && hour === 12) hour = 0;
+  } else if (hour > 23) {
+    return trimmed;
+  }
+
+  return `${String(hour).padStart(2, "0")}:${minute}`;
+}
+
 function toggleHabit(id) {
   const day = getDay();
   day.habitsDone[id] = !day.habitsDone[id];
@@ -677,13 +704,14 @@ startAppButton.addEventListener("click", () => {
 habitForm.addEventListener("submit", (event) => {
   event.preventDefault();
   const name = habitName.value.trim();
+  const time = normalizeTime(habitTime.value);
   if (!name) return;
 
   state.habits.push({
     id: createId(),
     name,
     frequency: habitFrequency.value,
-    time: habitTime.value,
+    time,
   });
   habitForm.reset();
   render();
