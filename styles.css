@@ -1044,12 +1044,30 @@ body[data-theme="dark"] .goal-bar {
   }
 
   .tabs {
-    grid-template-columns: repeat(6, minmax(104px, 1fr));
+    display: flex;
+    gap: 8px;
     overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+  }
+
+  .tabs::-webkit-scrollbar {
+    display: none;
   }
 
   .tab {
+    flex: 0 0 auto;
+    width: auto;
+    min-width: 106px;
     text-align: center;
+  }
+
+  .tab[data-tab="training"] {
+    min-width: 158px;
+  }
+
+  .tab[data-tab="food"] {
+    min-width: 146px;
   }
 
   .content {
@@ -1103,15 +1121,7 @@ body[data-theme="dark"] .goal-bar {
   }
 
   .tabs {
-    display: flex;
     gap: 6px;
-    overflow-x: auto;
-    overscroll-behavior-x: contain;
-    scrollbar-width: none;
-  }
-
-  .tabs::-webkit-scrollbar {
-    display: none;
   }
 
   .tab {
