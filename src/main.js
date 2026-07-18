@@ -1,36 +1,23 @@
+import "./styles.css";
+
+import { LocalDataRepository } from "./data/local-data-repository.js";
+import { createId, normalizeDay } from "./data/state.js";
+import { getDateKeyFromDate, getLocalDateKey, getRecentDateKeys } from "./domain/date.js";
+import { getCalendarLevel, getDayStats } from "./domain/progress.js";
+import { createDayPlan, normalizeHabitDays, normalizeTime } from "./domain/schedule.js";
+import { addMeal, removeMeal } from "./features/food.js";
+import { removeHabit, toggleHabit as toggleHabitState, upsertHabit } from "./features/habits.js";
+import {
+  removeRoutine,
+  toggleRoutine as toggleRoutineState,
+  upsertRoutine,
+} from "./features/training.js";
+import { changeWater, updateWaterGoal } from "./features/water.js";
+import { activateTab, bindTabNavigation } from "./ui/navigation.js";
+
+const repository = new LocalDataRepository();
 let currentDayKey = getLocalDateKey();
-const storageKey = "impulsox-state";
-const legacyStorageKey = "ritmo-diario-state";
-
-const defaultState = {
-  version: 2,
-  habits: [
-    {
-      id: createId(),
-      name: "Tomar agua al despertar",
-      frequency: "Diario",
-      time: "08:00",
-    },
-    {
-      id: createId(),
-      name: "Mover el cuerpo 20 minutos",
-      frequency: "Diario",
-      time: "18:00",
-    },
-  ],
-  routines: [
-    {
-      id: createId(),
-      name: "Piernas y gluteos",
-      day: "Lunes",
-      exercises: "Sentadillas 4x12\nHip thrust 4x10\nPeso muerto 3x10",
-    },
-  ],
-  days: {},
-  waterGoal: 2000,
-};
-
-let state = loadState();
+let state = repository.load();
 let activeTab = "today";
 let editingHabitId = null;
 let editingRoutineId = null;
@@ -126,14 +113,6 @@ let selectedHistoryDate = currentDayKey;
 applyTheme(loadTheme());
 createIntroParticles();
 
-function createId() {
-  if (window.crypto && typeof window.crypto.randomUUID === "function") {
-    return window.crypto.randomUUID();
-  }
-
-  return `id-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-}
-
 function createIntroParticles() {
   const particleCount = 42;
   const fragment = document.createDocumentFragment();
@@ -162,7 +141,7 @@ function createIntroParticles() {
 }
 
 function loadTheme() {
-  return localStorage.getItem("impulsox-theme") || "light";
+  return repository.getPreference("theme", "light");
 }
 
 function applyTheme(theme) {
@@ -170,241 +149,38 @@ function applyTheme(theme) {
   document.body.dataset.theme = nextTheme;
   themeToggle.checked = nextTheme === "dark";
   themeLabel.textContent = nextTheme === "dark" ? "Oscuro" : "Claro";
-  localStorage.setItem("impulsox-theme", nextTheme);
-}
-
-function loadState() {
-  const saved = localStorage.getItem(storageKey) || localStorage.getItem(legacyStorageKey);
-  if (!saved) return normalizeState(structuredClone(defaultState));
-
-  try {
-    return normalizeState(JSON.parse(saved));
-  } catch {
-    return normalizeState(structuredClone(defaultState));
-  }
-}
-
-function normalizeState(rawState, strict = false) {
-  if (!rawState || typeof rawState !== "object" || Array.isArray(rawState)) {
-    throw new Error("Estado invalido");
-  }
-
-  if (
-    strict &&
-    (!Array.isArray(rawState.habits) ||
-      !Array.isArray(rawState.routines) ||
-      !rawState.days ||
-      Array.isArray(rawState.days))
-  ) {
-    throw new Error("Respaldo incompleto");
-  }
-
-  const nextState = {
-    version: 2,
-    habits: normalizeHabits(Array.isArray(rawState.habits) ? rawState.habits : defaultState.habits),
-    routines: normalizeRoutines(
-      Array.isArray(rawState.routines) ? rawState.routines : defaultState.routines,
-    ),
-    days: {},
-    waterGoal: normalizePositiveNumber(rawState.waterGoal, defaultState.waterGoal),
-  };
-
-  const rawDays = rawState.days && typeof rawState.days === "object" ? rawState.days : {};
-  Object.entries(rawDays).forEach(([key, rawDay]) => {
-    if (!isValidDateKey(key)) {
-      if (strict) throw new Error("Fecha invalida en el respaldo");
-      return;
-    }
-    nextState.days[key] = normalizeDay(rawDay, nextState, key, strict);
-  });
-
-  return nextState;
-}
-
-function normalizeHabits(habits) {
-  return habits
-    .filter((habit) => habit && typeof habit === "object")
-    .map((habit) => {
-      const frequency = ["Diario", "Lunes a viernes", "3 veces por semana", "Semanal"].includes(
-        habit.frequency,
-      )
-        ? habit.frequency
-        : "Diario";
-      return {
-        id: String(habit.id || createId()),
-        name: String(habit.name || "Habito").slice(0, 120),
-        frequency,
-        time: normalizeTime(String(habit.time || "")),
-        days: normalizeHabitDays(frequency, habit.days),
-      };
-    });
-}
-
-function normalizeRoutines(routines) {
-  const validDays = ["Lunes", "Martes", "Miercoles", "Jueves", "Viernes", "Sabado", "Domingo"];
-  return routines
-    .filter((routine) => routine && typeof routine === "object")
-    .map((routine) => ({
-      id: String(routine.id || createId()),
-      name: String(routine.name || "Rutina").slice(0, 120),
-      day: validDays.includes(routine.day) ? routine.day : "Lunes",
-      exercises: String(routine.exercises || "").slice(0, 3000),
-    }));
-}
-
-function normalizeHabitDays(frequency, days) {
-  if (frequency === "Diario") return [1, 2, 3, 4, 5, 6, 7];
-  if (frequency === "Lunes a viernes") return [1, 2, 3, 4, 5];
-
-  const normalized = Array.isArray(days)
-    ? [...new Set(days.map(Number).filter((day) => day >= 1 && day <= 7))].sort()
-    : [];
-  if (frequency === "3 veces por semana") return normalized.length === 3 ? normalized : [1, 3, 5];
-  return normalized.length === 1 ? normalized : [1];
-}
-
-function normalizeDay(rawDay, currentState, key, strict = false) {
-  if (!rawDay || typeof rawDay !== "object" || Array.isArray(rawDay)) {
-    if (strict) throw new Error("Dia invalido en el respaldo");
-    rawDay = {};
-  }
-
-  const day = {
-    habitsDone: normalizeDoneMap(rawDay.habitsDone),
-    routinesDone: normalizeDoneMap(rawDay.routinesDone),
-    meals: normalizeMeals(rawDay.meals),
-    water: normalizeNonNegativeNumber(rawDay.water, 0),
-    note: String(rawDay.note || "").slice(0, 5000),
-    plan: null,
-  };
-
-  day.plan = normalizeDayPlan(rawDay.plan, currentState, key);
-  return day;
-}
-
-function normalizeDoneMap(value) {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
-  return Object.fromEntries(
-    Object.entries(value)
-      .filter(([, done]) => Boolean(done))
-      .map(([id]) => [String(id), true]),
-  );
-}
-
-function normalizeMeals(meals) {
-  if (!Array.isArray(meals)) return [];
-  return meals
-    .filter((meal) => meal && typeof meal === "object")
-    .map((meal) => ({
-      id: String(meal.id || createId()),
-      type: String(meal.type || "Comida").slice(0, 40),
-      text: String(meal.text || "").slice(0, 1000),
-      feeling: String(meal.feeling || "").slice(0, 300),
-    }));
-}
-
-function normalizeDayPlan(rawPlan, currentState, key) {
-  if (!rawPlan || typeof rawPlan !== "object" || Array.isArray(rawPlan)) {
-    return createDayPlan(currentState, key);
-  }
-
-  return {
-    habits: normalizeHabits(Array.isArray(rawPlan.habits) ? rawPlan.habits : []),
-    routines: normalizeRoutines(Array.isArray(rawPlan.routines) ? rawPlan.routines : []),
-    waterGoal: normalizePositiveNumber(rawPlan.waterGoal, currentState.waterGoal),
-  };
-}
-
-function normalizePositiveNumber(value, fallback) {
-  const number = Number(value);
-  return Number.isFinite(number) && number > 0 ? Math.round(number) : fallback;
-}
-
-function normalizeNonNegativeNumber(value, fallback) {
-  const number = Number(value);
-  return Number.isFinite(number) && number >= 0 ? Math.round(number) : fallback;
-}
-
-function isValidDateKey(key) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(key)) return false;
-  const [year, month, day] = key.split("-").map(Number);
-  return getDateKeyFromDate(new Date(year, month - 1, day)) === key;
-}
-
-function getLocalDateKey() {
-  const date = new Date();
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
+  repository.setPreference("theme", nextTheme);
 }
 
 function saveState() {
-  localStorage.setItem(storageKey, JSON.stringify(state));
+  state = repository.save(state);
 }
 
 function getDay() {
   if (!state.days[currentDayKey]) {
-    state.days[currentDayKey] = normalizeDay({
-      habitsDone: {},
-      routinesDone: {},
-      meals: [],
-      water: 0,
-      note: "",
-    }, state, currentDayKey);
+    state.days[currentDayKey] = normalizeDay(
+      {
+        habitsDone: {},
+        routinesDone: {},
+        meals: [],
+        water: 0,
+        note: "",
+      },
+      state,
+      currentDayKey,
+    );
   }
 
   return state.days[currentDayKey];
-}
-
-function createDayPlan(currentState, key) {
-  return {
-    habits: currentState.habits
-      .filter((habit) => isHabitScheduledForDate(habit, key))
-      .map((habit) => structuredClone(habit)),
-    routines: currentState.routines
-      .filter((routine) => isRoutineScheduledForDate(routine, key))
-      .map((routine) => structuredClone(routine)),
-    waterGoal: currentState.waterGoal,
-  };
 }
 
 function syncCurrentDayPlan(day) {
   day.plan = createDayPlan(state, currentDayKey);
 }
 
-function getIsoWeekdayFromKey(key) {
-  const [year, month, day] = key.split("-").map(Number);
-  const weekday = new Date(year, month - 1, day).getDay();
-  return weekday === 0 ? 7 : weekday;
-}
-
-function isHabitScheduledForDate(habit, key) {
-  return normalizeHabitDays(habit.frequency, habit.days).includes(getIsoWeekdayFromKey(key));
-}
-
-function isRoutineScheduledForDate(routine, key) {
-  const routineDays = {
-    Lunes: 1,
-    Martes: 2,
-    Miercoles: 3,
-    Jueves: 4,
-    Viernes: 5,
-    Sabado: 6,
-    Domingo: 7,
-  };
-  return routineDays[routine.day] === getIsoWeekdayFromKey(key);
-}
-
 function setActiveTab(tabName) {
   activeTab = tabName;
-  tabs.forEach((tab) => {
-    const isActive = tab.dataset.tab === tabName;
-    tab.classList.toggle("active", isActive);
-    tab.setAttribute("aria-selected", String(isActive));
-    tab.tabIndex = isActive ? 0 : -1;
-  });
-  panels.forEach((panel) => panel.classList.toggle("active", panel.dataset.panel === tabName));
+  activateTab({ tabName, tabs, panels });
   sectionTitle.textContent = sectionTitles[tabName];
 }
 
@@ -703,14 +479,6 @@ function renderWeeklyGoals() {
   );
 }
 
-function getCalendarLevel(stats) {
-  if (!stats) return "empty";
-  if (stats.score >= 80) return "high";
-  if (stats.score >= 45) return "medium";
-  if (stats.score > 0) return "low";
-  return "empty";
-}
-
 function goalElement(label, value, target, meta) {
   const percent = target > 0 ? Math.min(Math.round((value / target) * 100), 100) : 0;
   const card = document.createElement("article");
@@ -728,51 +496,6 @@ function goalElement(label, value, target, meta) {
   return card;
 }
 
-function getDayStats(day) {
-  const totalHabits = day.plan.habits.length;
-  const completedHabits = day.plan.habits.filter((habit) => day.habitsDone[habit.id]).length;
-  const completedRoutines = day.plan.routines.filter(
-    (routine) => day.routinesDone[routine.id],
-  ).length;
-  const waterPercent = Math.min(
-    Math.round(((day.water || 0) / day.plan.waterGoal) * 100),
-    100,
-  );
-  const habitPercent = totalHabits ? Math.round((completedHabits / totalHabits) * 100) : 0;
-  const foodScore = day.meals.length > 0 ? 100 : 0;
-  const categoryScores = [waterPercent, foodScore];
-  if (totalHabits > 0) categoryScores.push(habitPercent);
-  if (day.plan.routines.length > 0) {
-    categoryScores.push(Math.round((completedRoutines / day.plan.routines.length) * 100));
-  }
-  const score = Math.round(
-    categoryScores.reduce((sum, categoryScore) => sum + categoryScore, 0) /
-      categoryScores.length,
-  );
-
-  return {
-    totalHabits,
-    completedHabits,
-    completedRoutines,
-    waterPercent,
-    score,
-  };
-}
-
-function getRecentDateKeys(amount) {
-  const keys = [];
-  const date = new Date();
-  for (let index = 0; index < amount; index += 1) {
-    const copy = new Date(date);
-    copy.setDate(date.getDate() - index);
-    const year = copy.getFullYear();
-    const month = String(copy.getMonth() + 1).padStart(2, "0");
-    const day = String(copy.getDate()).padStart(2, "0");
-    keys.push(`${year}-${month}-${day}`);
-  }
-  return keys;
-}
-
 function getHabitStreak(habitId) {
   let streak = 0;
   const date = new Date();
@@ -788,7 +511,7 @@ function getHabitStreak(habitId) {
       if (day.habitsDone[habitId]) {
         streak += 1;
       } else if (firstScheduledDay && key === currentDayKey) {
-        firstScheduledDay = false;
+        // Hoy todavia puede estar pendiente sin cortar la racha previa.
       } else {
         break;
       }
@@ -816,13 +539,6 @@ function getPerfectDayStreak() {
   }
 
   return streak;
-}
-
-function getDateKeyFromDate(date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
 }
 
 function formatDateKey(key) {
@@ -1008,61 +724,40 @@ function resetTrainingForm() {
   trainingCancelButton.hidden = true;
 }
 
-function normalizeTime(value) {
-  const trimmed = value.trim().toLowerCase();
-  if (!trimmed) return "";
-
-  const compact = trimmed
-    .replaceAll(".", "")
-    .replace(/\s+/g, " ")
-    .replace("a m", "am")
-    .replace("p m", "pm");
-  const match = compact.match(/^(\d{1,2})(?::([0-5]\d))?\s*(am|pm)?$/);
-  if (!match) return trimmed;
-
-  let hour = Number(match[1]);
-  const minute = match[2] || "00";
-  const period = match[3];
-
-  if (period) {
-    if (hour < 1 || hour > 12) return trimmed;
-    if (period === "pm" && hour < 12) hour += 12;
-    if (period === "am" && hour === 12) hour = 0;
-  } else if (hour > 23) {
-    return trimmed;
-  }
-
-  return `${String(hour).padStart(2, "0")}:${minute}`;
-}
-
 function toggleHabit(id) {
   const day = getDay();
-  day.habitsDone[id] = !day.habitsDone[id];
+  toggleHabitState(day, id);
   render();
 }
 
 function deleteHabit(id) {
   const habit = state.habits.find((item) => item.id === id);
-  if (!habit || !window.confirm(`Eliminar el habito "${habit.name}"? El historial anterior se conservara.`)) {
+  if (
+    !habit ||
+    !window.confirm(`Eliminar el habito "${habit.name}"? El historial anterior se conservara.`)
+  ) {
     return;
   }
-  state.habits = state.habits.filter((habit) => habit.id !== id);
+  removeHabit(state, id);
   if (editingHabitId === id) resetHabitForm();
   render();
 }
 
 function toggleRoutine(id) {
   const day = getDay();
-  day.routinesDone[id] = !day.routinesDone[id];
+  toggleRoutineState(day, id);
   render();
 }
 
 function deleteRoutine(id) {
   const routine = state.routines.find((item) => item.id === id);
-  if (!routine || !window.confirm(`Eliminar la rutina "${routine.name}"? El historial anterior se conservara.`)) {
+  if (
+    !routine ||
+    !window.confirm(`Eliminar la rutina "${routine.name}"? El historial anterior se conservara.`)
+  ) {
     return;
   }
-  state.routines = state.routines.filter((routine) => routine.id !== id);
+  removeRoutine(state, id);
   if (editingRoutineId === id) resetTrainingForm();
   render();
 }
@@ -1071,26 +766,11 @@ function deleteMeal(id) {
   const day = getDay();
   const meal = day.meals.find((item) => item.id === id);
   if (!meal || !window.confirm(`Eliminar el registro de ${meal.type.toLowerCase()}?`)) return;
-  day.meals = day.meals.filter((meal) => meal.id !== id);
+  removeMeal(day, id);
   render();
 }
 
-tabs.forEach((tab) => {
-  tab.addEventListener("click", () => setActiveTab(tab.dataset.tab));
-  tab.addEventListener("keydown", (event) => {
-    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
-    event.preventDefault();
-    const tabList = [...tabs];
-    const currentIndex = tabList.indexOf(tab);
-    let nextIndex = currentIndex;
-    if (event.key === "ArrowLeft") nextIndex = (currentIndex - 1 + tabList.length) % tabList.length;
-    if (event.key === "ArrowRight") nextIndex = (currentIndex + 1) % tabList.length;
-    if (event.key === "Home") nextIndex = 0;
-    if (event.key === "End") nextIndex = tabList.length - 1;
-    setActiveTab(tabList[nextIndex].dataset.tab);
-    tabList[nextIndex].focus();
-  });
-});
+bindTabNavigation({ tabs, onActivate: setActiveTab });
 
 themeToggle.addEventListener("change", () => {
   applyTheme(themeToggle.checked ? "dark" : "light");
@@ -1132,11 +812,7 @@ habitForm.addEventListener("submit", (event) => {
     time,
     days: normalizeHabitDays(habitFrequency.value, getSelectedHabitDays()),
   };
-  if (editingHabitId) {
-    state.habits = state.habits.map((item) => (item.id === editingHabitId ? habit : item));
-  } else {
-    state.habits.push(habit);
-  }
+  upsertHabit(state, habit);
   resetHabitForm();
   render();
 });
@@ -1153,11 +829,7 @@ trainingForm.addEventListener("submit", (event) => {
     day: trainingDay.value,
     exercises,
   };
-  if (editingRoutineId) {
-    state.routines = state.routines.map((item) => (item.id === editingRoutineId ? routine : item));
-  } else {
-    state.routines.push(routine);
-  }
+  upsertRoutine(state, routine);
   resetTrainingForm();
   render();
 });
@@ -1169,7 +841,7 @@ foodForm.addEventListener("submit", (event) => {
   if (!text) return;
 
   const day = getDay();
-  day.meals.push({
+  addMeal(day, {
     id: createId(),
     type: mealType.value,
     text,
@@ -1187,11 +859,10 @@ dailyNote.addEventListener("input", () => {
 document.querySelectorAll("[data-water]").forEach((button) => {
   button.addEventListener("click", () => {
     const day = getDay();
-    const wasComplete = day.water >= day.plan.waterGoal;
     const waterChange = Number(button.dataset.water);
-    day.water = Math.max(0, day.water + waterChange);
+    const result = changeWater(day, waterChange);
     render();
-    if (!wasComplete && waterChange > 0 && day.water >= day.plan.waterGoal) celebrateWaterGoal();
+    if (!result.wasComplete && waterChange > 0 && result.isComplete) celebrateWaterGoal();
   });
 });
 
@@ -1199,29 +870,30 @@ waterGoalForm.addEventListener("submit", (event) => {
   event.preventDefault();
   const day = getDay();
   const wasComplete = day.water >= day.plan.waterGoal;
-  state.waterGoal = Math.max(250, Number(waterGoalInput.value) || 2000);
+  updateWaterGoal(state, waterGoalInput.value);
   render();
   if (!wasComplete && day.water >= day.plan.waterGoal) celebrateWaterGoal();
 });
 
 resetTodayButton.addEventListener("click", () => {
-  if (!window.confirm("Reiniciar todo lo registrado hoy? Esta accion no se puede deshacer.")) return;
-  state.days[currentDayKey] = normalizeDay({
-    habitsDone: {},
-    routinesDone: {},
-    meals: [],
-    water: 0,
-    note: "",
-  }, state, currentDayKey);
+  if (!window.confirm("Reiniciar todo lo registrado hoy? Esta accion no se puede deshacer."))
+    return;
+  state.days[currentDayKey] = normalizeDay(
+    {
+      habitsDone: {},
+      routinesDone: {},
+      meals: [],
+      water: 0,
+      note: "",
+    },
+    state,
+    currentDayKey,
+  );
   render();
 });
 
 exportDataButton.addEventListener("click", () => {
-  const payload = {
-    app: "IMPULSOX",
-    exportedAt: new Date().toISOString(),
-    state,
-  };
+  const payload = repository.export(state);
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
@@ -1238,12 +910,8 @@ importDataInput.addEventListener("change", async () => {
 
   try {
     const text = await file.text();
-    const backup = JSON.parse(text);
-    const importedState = backup.state || backup;
-    const validatedState = normalizeState(importedState, true);
-    state = validatedState;
+    state = repository.import(text);
     selectedHistoryDate = currentDayKey;
-    saveState();
     render();
     backupStatus.textContent = "Respaldo importado correctamente.";
   } catch {
@@ -1279,12 +947,6 @@ window.addEventListener("appinstalled", () => {
   deferredInstallPrompt = null;
   installButton.hidden = true;
 });
-
-if ("serviceWorker" in navigator) {
-  window.addEventListener("load", () => {
-    navigator.serviceWorker.register("./sw.js").catch(() => {});
-  });
-}
 
 function watchForNewDay() {
   const checkForNewDay = () => {

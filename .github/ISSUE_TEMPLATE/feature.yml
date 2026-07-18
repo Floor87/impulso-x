@@ -1,0 +1,45 @@
+name: Cambio de producto
+description: Contrato de trabajo para una mejora o correccion
+title: "[Cambio]: "
+labels: []
+body:
+  - type: textarea
+    id: objective
+    attributes:
+      label: Objetivo
+      description: Resultado observable que debe conseguirse.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Criterios de aceptacion
+      description: Condiciones concretas y comprobables.
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Alcance y modulos autorizados
+      description: Inclui tambien lo que queda fuera de alcance.
+    validations:
+      required: true
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependencias y agente integrador
+      description: PR previas, contratos compartidos y responsable de archivos globales.
+  - type: textarea
+    id: risk
+    attributes:
+      label: Riesgo y rollback
+      description: Impacto posible y procedimiento para volver atras.
+    validations:
+      required: true
+  - type: textarea
+    id: tests
+    attributes:
+      label: Plan de pruebas
+      description: Unitarias, integracion, E2E, PWA, Supabase o despliegue.
+    validations:
+      required: true
