@@ -611,23 +611,24 @@ textarea:focus {
   display: grid;
   position: relative;
   gap: 24px;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .water-meter::before {
   position: absolute;
-  inset: 0;
-  z-index: 3;
-  padding: 2px;
-  border-radius: inherit;
+  inset: -7px;
+  z-index: -1;
+  padding: 3px;
+  border-radius: 12px;
   background: conic-gradient(
     from 0deg,
     transparent 0deg,
-    transparent 248deg,
-    rgba(255, 248, 222, 0.95) 270deg,
-    rgba(255, 204, 24, 0.96) 292deg,
-    rgba(255, 248, 222, 0.9) 312deg,
-    transparent 336deg,
+    transparent 238deg,
+    rgba(255, 248, 222, 0.2) 252deg,
+    rgba(255, 248, 222, 0.98) 274deg,
+    rgba(255, 204, 24, 1) 292deg,
+    rgba(255, 248, 222, 0.86) 310deg,
+    transparent 332deg,
     transparent 360deg
   );
   content: "";
@@ -842,7 +843,9 @@ textarea:focus {
   15%,
   78% {
     opacity: 1;
-    filter: drop-shadow(0 0 10px rgba(255, 204, 24, 0.62));
+    filter:
+      drop-shadow(0 0 8px rgba(255, 248, 222, 0.74))
+      drop-shadow(0 0 18px rgba(255, 204, 24, 0.62));
   }
 
   100% {
