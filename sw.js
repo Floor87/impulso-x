@@ -1,4 +1,4 @@
-const CACHE_NAME = "impulsox-v19";
+const CACHE_NAME = "impulsox-v20";
 const APP_ASSETS = [
   "./",
   "./index.html",
