@@ -73,11 +73,9 @@ const mealFeeling = document.querySelector("#mealFeeling");
 const foodList = document.querySelector("#foodList");
 
 const dailyNote = document.querySelector("#dailyNote");
-const waterMeter = document.querySelector(".water-meter");
 const waterAmount = document.querySelector("#waterAmount");
 const waterGoalText = document.querySelector("#waterGoalText");
 const waterFill = document.querySelector("#waterFill");
-const waterGoalBurst = document.querySelector("#waterGoalBurst");
 const waterGoalForm = document.querySelector("#waterGoalForm");
 const waterGoalInput = document.querySelector("#waterGoalInput");
 
@@ -634,17 +632,6 @@ function emptyState(text) {
 
 function celebrateWaterGoal() {
   if (navigator.vibrate) navigator.vibrate([45, 35, 65]);
-
-  waterMeter.classList.remove("celebrate");
-  waterGoalBurst.classList.remove("show");
-  void waterMeter.offsetWidth;
-  waterMeter.classList.add("celebrate");
-  waterGoalBurst.classList.add("show");
-
-  window.setTimeout(() => {
-    waterMeter.classList.remove("celebrate");
-    waterGoalBurst.classList.remove("show");
-  }, 1400);
 }
 
 function normalizeTime(value) {
