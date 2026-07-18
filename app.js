@@ -76,6 +76,7 @@ const dailyNote = document.querySelector("#dailyNote");
 const waterAmount = document.querySelector("#waterAmount");
 const waterGoalText = document.querySelector("#waterGoalText");
 const waterFill = document.querySelector("#waterFill");
+const waterMeter = document.querySelector(".water-meter");
 const waterGoalForm = document.querySelector("#waterGoalForm");
 const waterGoalInput = document.querySelector("#waterGoalInput");
 
@@ -315,6 +316,7 @@ function renderWater(day) {
   waterAmount.textContent = `${day.water} ml`;
   waterGoalText.textContent = `de ${state.waterGoal} ml`;
   waterFill.style.width = `${waterPercent}%`;
+  waterMeter.classList.toggle("goal-complete", day.water >= state.waterGoal);
 }
 
 function renderHistory() {
@@ -632,6 +634,11 @@ function emptyState(text) {
 
 function celebrateWaterGoal() {
   if (navigator.vibrate) navigator.vibrate([45, 35, 65]);
+
+  waterMeter.classList.remove("goal-celebrating");
+  void waterMeter.offsetWidth;
+  waterMeter.classList.add("goal-celebrating");
+  window.setTimeout(() => waterMeter.classList.remove("goal-celebrating"), 1800);
 }
 
 function normalizeTime(value) {
