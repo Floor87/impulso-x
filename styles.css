@@ -614,6 +614,35 @@ textarea:focus {
   overflow: hidden;
 }
 
+.water-meter::before {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  padding: 2px;
+  border-radius: inherit;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg,
+    transparent 248deg,
+    rgba(255, 248, 222, 0.95) 270deg,
+    rgba(255, 204, 24, 0.96) 292deg,
+    rgba(255, 248, 222, 0.9) 312deg,
+    transparent 336deg,
+    transparent 360deg
+  );
+  content: "";
+  opacity: 0;
+  pointer-events: none;
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
+}
+
 .water-meter h3 {
   margin-top: 6px;
   font-size: clamp(3rem, 10vw, 6rem);
@@ -621,7 +650,11 @@ textarea:focus {
 }
 
 .water-meter.celebrate {
-  animation: water-card-pop 0.55s ease;
+  animation: water-card-vibrate 0.46s ease;
+}
+
+.water-meter.celebrate::before {
+  animation: golden-thread 1.35s ease-out forwards;
 }
 
 .water-meter.celebrate .meter-fill {
@@ -765,17 +798,6 @@ textarea:focus {
   transition: width 0.25s ease;
 }
 
-@keyframes water-card-pop {
-  0%,
-  100% {
-    transform: scale(1);
-  }
-
-  42% {
-    transform: scale(1.012);
-  }
-}
-
 @keyframes water-fill-glow {
   0%,
   100% {
@@ -784,6 +806,49 @@ textarea:focus {
 
   45% {
     filter: brightness(1.24) saturate(1.2);
+  }
+}
+
+@keyframes water-card-vibrate {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+
+  18% {
+    transform: translate3d(1px, 0, 0);
+  }
+
+  36% {
+    transform: translate3d(-1px, 0, 0);
+  }
+
+  54% {
+    transform: translate3d(0.7px, 0, 0);
+  }
+
+  72% {
+    transform: translate3d(-0.7px, 0, 0);
+  }
+}
+
+@keyframes golden-thread {
+  0% {
+    opacity: 0;
+    transform: rotate(0deg);
+    filter: drop-shadow(0 0 0 rgba(255, 204, 24, 0));
+  }
+
+  15%,
+  78% {
+    opacity: 1;
+    filter: drop-shadow(0 0 10px rgba(255, 204, 24, 0.62));
+  }
+
+  100% {
+    opacity: 0;
+    transform: rotate(1turn);
+    filter: drop-shadow(0 0 2px rgba(255, 204, 24, 0.1));
   }
 }
 
