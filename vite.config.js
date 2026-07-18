@@ -10,8 +10,7 @@ export default defineConfig({
       manifest: {
         name: "IMPULSOX",
         short_name: "IMPULSOX",
-        description:
-          "Seguimiento diario de habitos, entrenamiento, alimentacion, agua y progreso.",
+        description: "Seguimiento diario de habitos, entrenamiento, alimentacion, agua y progreso.",
         start_url: "/",
         scope: "/",
         display: "standalone",

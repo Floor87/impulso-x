@@ -2,11 +2,7 @@ import "./styles.css";
 
 import { LocalDataRepository } from "./data/local-data-repository.js";
 import { createId, normalizeDay } from "./data/state.js";
-import {
-  getDateKeyFromDate,
-  getLocalDateKey,
-  getRecentDateKeys,
-} from "./domain/date.js";
+import { getDateKeyFromDate, getLocalDateKey, getRecentDateKeys } from "./domain/date.js";
 import { getCalendarLevel, getDayStats } from "./domain/progress.js";
 import { createDayPlan, normalizeHabitDays, normalizeTime } from "./domain/schedule.js";
 import { addMeal, removeMeal } from "./features/food.js";
@@ -162,13 +158,17 @@ function saveState() {
 
 function getDay() {
   if (!state.days[currentDayKey]) {
-    state.days[currentDayKey] = normalizeDay({
-      habitsDone: {},
-      routinesDone: {},
-      meals: [],
-      water: 0,
-      note: "",
-    }, state, currentDayKey);
+    state.days[currentDayKey] = normalizeDay(
+      {
+        habitsDone: {},
+        routinesDone: {},
+        meals: [],
+        water: 0,
+        note: "",
+      },
+      state,
+      currentDayKey,
+    );
   }
 
   return state.days[currentDayKey];
@@ -511,7 +511,7 @@ function getHabitStreak(habitId) {
       if (day.habitsDone[habitId]) {
         streak += 1;
       } else if (firstScheduledDay && key === currentDayKey) {
-        firstScheduledDay = false;
+        // Hoy todavia puede estar pendiente sin cortar la racha previa.
       } else {
         break;
       }
@@ -732,7 +732,10 @@ function toggleHabit(id) {
 
 function deleteHabit(id) {
   const habit = state.habits.find((item) => item.id === id);
-  if (!habit || !window.confirm(`Eliminar el habito "${habit.name}"? El historial anterior se conservara.`)) {
+  if (
+    !habit ||
+    !window.confirm(`Eliminar el habito "${habit.name}"? El historial anterior se conservara.`)
+  ) {
     return;
   }
   removeHabit(state, id);
@@ -748,7 +751,10 @@ function toggleRoutine(id) {
 
 function deleteRoutine(id) {
   const routine = state.routines.find((item) => item.id === id);
-  if (!routine || !window.confirm(`Eliminar la rutina "${routine.name}"? El historial anterior se conservara.`)) {
+  if (
+    !routine ||
+    !window.confirm(`Eliminar la rutina "${routine.name}"? El historial anterior se conservara.`)
+  ) {
     return;
   }
   removeRoutine(state, id);
@@ -870,14 +876,19 @@ waterGoalForm.addEventListener("submit", (event) => {
 });
 
 resetTodayButton.addEventListener("click", () => {
-  if (!window.confirm("Reiniciar todo lo registrado hoy? Esta accion no se puede deshacer.")) return;
-  state.days[currentDayKey] = normalizeDay({
-    habitsDone: {},
-    routinesDone: {},
-    meals: [],
-    water: 0,
-    note: "",
-  }, state, currentDayKey);
+  if (!window.confirm("Reiniciar todo lo registrado hoy? Esta accion no se puede deshacer."))
+    return;
+  state.days[currentDayKey] = normalizeDay(
+    {
+      habitsDone: {},
+      routinesDone: {},
+      meals: [],
+      water: 0,
+      note: "",
+    },
+    state,
+    currentDayKey,
+  );
   render();
 });
 

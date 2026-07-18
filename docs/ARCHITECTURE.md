@@ -24,10 +24,10 @@ trabajar con limites claros.
 La interfaz estable es `DataRepository`:
 
 ```js
-repository.load()
-repository.save(state)
-repository.export()
-repository.import(serializedState)
+repository.load();
+repository.save(state);
+repository.export();
+repository.import(serializedState);
 ```
 
 `LocalDataRepository` mantiene compatibilidad con `impulsox-state` y migra la

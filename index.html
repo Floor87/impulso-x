@@ -32,12 +32,48 @@
         </div>
 
         <nav class="tabs" aria-label="Secciones" role="tablist">
-          <button class="tab active" id="todayTab" data-tab="today" role="tab" aria-controls="todayPanel">Hoy</button>
-          <button class="tab" id="habitsTab" data-tab="habits" role="tab" aria-controls="habitsPanel">Habitos</button>
-          <button class="tab" id="trainingTab" data-tab="training" role="tab" aria-controls="trainingPanel">Entrenamiento</button>
-          <button class="tab" id="foodTab" data-tab="food" role="tab" aria-controls="foodPanel">Alimentacion</button>
-          <button class="tab" id="waterTab" data-tab="water" role="tab" aria-controls="waterPanel">Agua</button>
-          <button class="tab" id="progressTab" data-tab="progress" role="tab" aria-controls="progressPanel">Progreso</button>
+          <button
+            class="tab active"
+            id="todayTab"
+            data-tab="today"
+            role="tab"
+            aria-controls="todayPanel"
+          >
+            Hoy
+          </button>
+          <button
+            class="tab"
+            id="habitsTab"
+            data-tab="habits"
+            role="tab"
+            aria-controls="habitsPanel"
+          >
+            Habitos
+          </button>
+          <button
+            class="tab"
+            id="trainingTab"
+            data-tab="training"
+            role="tab"
+            aria-controls="trainingPanel"
+          >
+            Entrenamiento
+          </button>
+          <button class="tab" id="foodTab" data-tab="food" role="tab" aria-controls="foodPanel">
+            Alimentacion
+          </button>
+          <button class="tab" id="waterTab" data-tab="water" role="tab" aria-controls="waterPanel">
+            Agua
+          </button>
+          <button
+            class="tab"
+            id="progressTab"
+            data-tab="progress"
+            role="tab"
+            aria-controls="progressPanel"
+          >
+            Progreso
+          </button>
         </nav>
       </aside>
 
@@ -55,16 +91,20 @@
               </span>
               <span id="themeLabel">Claro</span>
             </label>
-            <button class="ghost-button" id="resetTodayButton" type="button">
-              Reiniciar dia
-            </button>
+            <button class="ghost-button" id="resetTodayButton" type="button">Reiniciar dia</button>
             <button class="ghost-button install-button" id="installButton" type="button" hidden>
               Instalar app
             </button>
           </div>
         </header>
 
-        <section class="panel active" id="todayPanel" data-panel="today" role="tabpanel" aria-labelledby="todayTab">
+        <section
+          class="panel active"
+          id="todayPanel"
+          data-panel="today"
+          role="tabpanel"
+          aria-labelledby="todayTab"
+        >
           <div class="daily-grid">
             <article class="summary-card accent-green">
               <span>Habitos</span>
@@ -111,7 +151,13 @@
           </div>
         </section>
 
-        <section class="panel" id="habitsPanel" data-panel="habits" role="tabpanel" aria-labelledby="habitsTab">
+        <section
+          class="panel"
+          id="habitsPanel"
+          data-panel="habits"
+          role="tabpanel"
+          aria-labelledby="habitsTab"
+        >
           <div class="two-column">
             <form class="composer" id="habitForm">
               <h3 id="habitFormTitle">Agregar habito</h3>
@@ -170,7 +216,13 @@
           </div>
         </section>
 
-        <section class="panel" id="trainingPanel" data-panel="training" role="tabpanel" aria-labelledby="trainingTab">
+        <section
+          class="panel"
+          id="trainingPanel"
+          data-panel="training"
+          role="tabpanel"
+          aria-labelledby="trainingTab"
+        >
           <div class="two-column">
             <form class="composer" id="trainingForm">
               <h3 id="trainingFormTitle">Agregar rutina</h3>
@@ -218,7 +270,13 @@
           </div>
         </section>
 
-        <section class="panel" id="foodPanel" data-panel="food" role="tabpanel" aria-labelledby="foodTab">
+        <section
+          class="panel"
+          id="foodPanel"
+          data-panel="food"
+          role="tabpanel"
+          aria-labelledby="foodTab"
+        >
           <div class="two-column">
             <form class="composer" id="foodForm">
               <h3>Registrar comida</h3>
@@ -253,7 +311,13 @@
           </div>
         </section>
 
-        <section class="panel" id="waterPanel" data-panel="water" role="tabpanel" aria-labelledby="waterTab">
+        <section
+          class="panel"
+          id="waterPanel"
+          data-panel="water"
+          role="tabpanel"
+          aria-labelledby="waterTab"
+        >
           <div class="water-layout">
             <article class="water-meter">
               <div class="water-sparkles" aria-hidden="true">
@@ -290,7 +354,13 @@
           </div>
         </section>
 
-        <section class="panel" id="progressPanel" data-panel="progress" role="tabpanel" aria-labelledby="progressTab">
+        <section
+          class="panel"
+          id="progressPanel"
+          data-panel="progress"
+          role="tabpanel"
+          aria-labelledby="progressTab"
+        >
           <div class="daily-grid progress-summary-grid">
             <article class="summary-card accent-green">
               <span>Semana</span>
@@ -378,7 +448,9 @@
                 <input id="importDataInput" type="file" accept="application/json" />
               </label>
             </div>
-            <p class="helper-text" id="backupStatus" aria-live="polite">Tus datos se guardan en este navegador.</p>
+            <p class="helper-text" id="backupStatus" aria-live="polite">
+              Tus datos se guardan en este navegador.
+            </p>
           </article>
         </section>
       </main>

@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 
 test.beforeEach(async ({ page }) => {
   await page.goto("/");
-  await page.getByRole("button", { name: "Iniciar" }).click();
+  await page.getByRole("button", { name: "Iniciar", exact: true }).click();
 });
 
 test("navigates through every daily area", async ({ page }) => {
@@ -22,17 +22,22 @@ test("navigates through every daily area", async ({ page }) => {
 });
 
 test("persists theme and user data after reload", async ({ page }) => {
-  await page.getByLabel("Claro").check();
+  await page.locator(".theme-switch").click();
+  await expect(page.locator("#themeToggle")).toBeChecked();
   await page.getByRole("tab", { name: "Habitos", exact: true }).click();
   await page.locator("#habitName").fill("Dormir ocho horas");
   await page.getByRole("button", { name: "Agregar habito" }).click();
-  await expect(page.getByText("Dormir ocho horas", { exact: true })).toBeVisible();
+  await expect(
+    page.locator("#habitsPanel").getByText("Dormir ocho horas", { exact: true }),
+  ).toBeVisible();
 
   await page.reload();
-  await page.getByRole("button", { name: "Iniciar" }).click();
+  await page.getByRole("button", { name: "Iniciar", exact: true }).click();
   await expect(page.locator("body")).toHaveAttribute("data-theme", "dark");
   await page.getByRole("tab", { name: "Habitos", exact: true }).click();
-  await expect(page.getByText("Dormir ocho horas", { exact: true })).toBeVisible();
+  await expect(
+    page.locator("#habitsPanel").getByText("Dormir ocho horas", { exact: true }),
+  ).toBeVisible();
 });
 
 test("celebrates the water goal and records history", async ({ page }) => {

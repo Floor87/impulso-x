@@ -2,11 +2,11 @@
 
 ## Entornos
 
-| Entorno | Fuente | Datos | Publicacion |
-| --- | --- | --- | --- |
-| Local | worktree del agente | navegador local | nunca publica |
-| Preview | pull request | Supabase staging | automatico en Vercel |
-| Produccion | `main` aprobada | Supabase produccion | promocion controlada |
+| Entorno    | Fuente              | Datos               | Publicacion          |
+| ---------- | ------------------- | ------------------- | -------------------- |
+| Local      | worktree del agente | navegador local     | nunca publica        |
+| Preview    | pull request        | Supabase staging    | automatico en Vercel |
+| Produccion | `main` aprobada     | Supabase produccion | promocion controlada |
 
 ## Flujo
 

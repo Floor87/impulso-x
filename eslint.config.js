@@ -33,6 +33,7 @@ export default [
       ecmaVersion: "latest",
       sourceType: "module",
       globals: {
+        document: "readonly",
         globalThis: "readonly",
         process: "readonly",
         structuredClone: "readonly",

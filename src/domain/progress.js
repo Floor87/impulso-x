@@ -2,9 +2,7 @@ export function getDayStats(day) {
   const plan = day.plan || { habits: [], routines: [], waterGoal: 2000 };
   const totalHabits = plan.habits.length;
   const completedHabits = plan.habits.filter((habit) => day.habitsDone[habit.id]).length;
-  const completedRoutines = plan.routines.filter(
-    (routine) => day.routinesDone[routine.id],
-  ).length;
+  const completedRoutines = plan.routines.filter((routine) => day.routinesDone[routine.id]).length;
   const waterPercent = Math.min(
     Math.round(((day.water || 0) / Math.max(plan.waterGoal, 1)) * 100),
     100,
@@ -23,8 +21,7 @@ export function getDayStats(day) {
     completedRoutines,
     waterPercent,
     score: Math.round(
-      categoryScores.reduce((sum, categoryScore) => sum + categoryScore, 0) /
-        categoryScores.length,
+      categoryScores.reduce((sum, categoryScore) => sum + categoryScore, 0) / categoryScores.length,
     ),
   };
 }
