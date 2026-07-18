@@ -5,15 +5,18 @@ IMPULSOX es una app web instalable para registrar habitos, entrenamiento, alimen
 ## Funciones
 
 - Habitos diarios con marcado de realizado.
+- Frecuencias reales y seleccion de dias para habitos semanales.
+- Edicion de habitos, horarios y rutinas.
 - Rutinas de entrenamiento.
 - Registro de alimentacion.
 - Medidor de agua diario.
-- Historial de progreso por dia.
+- Historial de progreso estable, aunque cambien los objetivos actuales.
 - Cambio automatico de dia al llegar a las 00:00.
 - Soporte PWA para instalar en el celular.
+- Respaldo e importacion validada de datos.
 
 ## Abrir
 
-Abrir `index.html` en el navegador.
+Para revisar la interfaz local se puede abrir `index.html` en el navegador.
 
-Para publicarla con GitHub Pages, publicar la rama `main` desde la raiz del repositorio.
+Para instalarla correctamente en un celular debe publicarse mediante HTTPS.

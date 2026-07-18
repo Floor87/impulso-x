@@ -1,4 +1,4 @@
-const CACHE_NAME = "impulsox-v24";
+const CACHE_NAME = "impulsox-v25";
 const APP_ASSETS = [
   "./",
   "./index.html",
@@ -35,10 +35,22 @@ self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
 
   event.respondWith(
-    caches.match(event.request).then((cached) => {
-      if (cached) return cached;
-
-      return fetch(event.request).catch(() => caches.match("./index.html"));
-    }),
+    fetch(event.request)
+      .then((response) => {
+        if (response.ok && new URL(event.request.url).origin === self.location.origin) {
+          const copy = response.clone();
+          return caches
+            .open(CACHE_NAME)
+            .then((cache) => cache.put(event.request, copy))
+            .then(() => response);
+        }
+        return response;
+      })
+      .catch(async () => {
+        const cached = await caches.match(event.request);
+        if (cached) return cached;
+        if (event.request.mode === "navigate") return caches.match("./index.html");
+        return new Response("Sin conexion", { status: 503, statusText: "Offline" });
+      }),
   );
 });

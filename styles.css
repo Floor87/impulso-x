@@ -521,6 +521,10 @@ button {
   background: #fff;
 }
 
+.item.no-actions {
+  grid-template-columns: auto minmax(0, 1fr);
+}
+
 .item.done {
   background: #eef8f2;
 }
@@ -535,6 +539,11 @@ button {
   background: #fff;
   color: transparent;
   font-weight: 900;
+}
+
+.check-button:disabled {
+  cursor: default;
+  opacity: 0.42;
 }
 
 .item.done .check-button {
@@ -555,14 +564,31 @@ button {
   line-height: 1.4;
 }
 
+.item-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.edit-button,
+.delete-button {
+  min-height: 34px;
+  border: 0;
+  border-radius: 8px;
+  font-weight: 900;
+}
+
+.edit-button {
+  padding: 7px 10px;
+  background: var(--surface-soft);
+  color: var(--text);
+}
+
 .delete-button {
   width: 34px;
   height: 34px;
-  border: 0;
-  border-radius: 8px;
   background: #f4eeee;
   color: #8d3443;
-  font-weight: 900;
 }
 
 .composer {
@@ -577,6 +603,85 @@ button {
   color: var(--muted);
   font-size: 0.9rem;
   font-weight: 800;
+}
+
+.weekday-picker {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.weekday-picker[hidden] {
+  display: none;
+}
+
+.weekday-picker legend {
+  margin-bottom: 8px;
+  color: var(--muted);
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+
+.weekday-options {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 5px;
+}
+
+.weekday-options label {
+  display: block;
+  min-width: 0;
+  cursor: pointer;
+}
+
+.weekday-options input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.weekday-options span {
+  display: grid;
+  min-height: 38px;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-soft);
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 900;
+}
+
+.weekday-options input:checked + span {
+  border-color: var(--green);
+  background: var(--green);
+  color: #fff;
+}
+
+.weekday-options input:focus-visible + span {
+  outline: 3px solid rgba(47, 143, 104, 0.22);
+  outline-offset: 2px;
+}
+
+.form-status {
+  min-height: 18px;
+  margin: 7px 0 0;
+  color: var(--rose);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.form-actions .primary-button {
+  flex: 1 1 190px;
 }
 
 input,
@@ -1183,6 +1288,10 @@ body[data-theme="dark"] .delete-button {
   color: #ff9aaa;
 }
 
+body[data-theme="dark"] .edit-button {
+  background: #1b2721;
+}
+
 body[data-theme="dark"] .meter-track {
   background: #17242b;
 }
@@ -1298,7 +1407,7 @@ body[data-theme="dark"] .goal-bar {
     border-top: 1px solid rgba(23, 33, 28, 0.1);
     border-bottom: 0;
     background: rgba(255, 255, 255, 0.92);
-    overflow: hidden;
+    overflow: visible;
   }
 
   .brand {
@@ -1306,16 +1415,18 @@ body[data-theme="dark"] .goal-bar {
   }
 
   .tabs {
-    gap: 6px;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 5px;
     max-width: 100%;
-    touch-action: pan-x;
+    overflow: visible;
+    touch-action: auto;
   }
 
   .tab {
-    flex: 0 0 auto;
-    width: auto;
-    min-width: 74px;
-    min-height: 54px;
+    width: 100%;
+    min-width: 0;
+    min-height: 46px;
     padding: 8px 10px;
     border-radius: 8px;
     font-size: 0.72rem;
@@ -1324,14 +1435,18 @@ body[data-theme="dark"] .goal-bar {
   }
 
   .tab[data-tab="training"] {
-    min-width: 122px;
+    min-width: 0;
+  }
+
+  .tab[data-tab="food"] {
+    min-width: 0;
   }
 
   .content {
     min-height: 100dvh;
     max-width: 100vw;
     overflow-x: hidden;
-    padding: calc(18px + env(safe-area-inset-top)) 14px calc(92px + env(safe-area-inset-bottom));
+    padding: calc(18px + env(safe-area-inset-top)) 14px calc(132px + env(safe-area-inset-bottom));
   }
 
   .topbar {
@@ -1371,9 +1486,13 @@ body[data-theme="dark"] .goal-bar {
     min-height: 74px;
   }
 
-  .delete-button {
+  .item-actions {
     grid-column: 2;
     justify-self: end;
+  }
+
+  .weekday-options {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
   .history-detail-grid {

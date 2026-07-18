@@ -33,13 +33,13 @@
           </div>
         </div>
 
-        <nav class="tabs" aria-label="Secciones">
-          <button class="tab active" data-tab="today">Hoy</button>
-          <button class="tab" data-tab="habits">Habitos</button>
-          <button class="tab" data-tab="training">Entrenamiento</button>
-          <button class="tab" data-tab="food">Alimentacion</button>
-          <button class="tab" data-tab="water">Agua</button>
-          <button class="tab" data-tab="progress">Progreso</button>
+        <nav class="tabs" aria-label="Secciones" role="tablist">
+          <button class="tab active" id="todayTab" data-tab="today" role="tab" aria-controls="todayPanel">Hoy</button>
+          <button class="tab" id="habitsTab" data-tab="habits" role="tab" aria-controls="habitsPanel">Habitos</button>
+          <button class="tab" id="trainingTab" data-tab="training" role="tab" aria-controls="trainingPanel">Entrenamiento</button>
+          <button class="tab" id="foodTab" data-tab="food" role="tab" aria-controls="foodPanel">Alimentacion</button>
+          <button class="tab" id="waterTab" data-tab="water" role="tab" aria-controls="waterPanel">Agua</button>
+          <button class="tab" id="progressTab" data-tab="progress" role="tab" aria-controls="progressPanel">Progreso</button>
         </nav>
       </aside>
 
@@ -66,7 +66,7 @@
           </div>
         </header>
 
-        <section class="panel active" id="todayPanel" data-panel="today">
+        <section class="panel active" id="todayPanel" data-panel="today" role="tabpanel" aria-labelledby="todayTab">
           <div class="daily-grid">
             <article class="summary-card accent-green">
               <span>Habitos</span>
@@ -113,10 +113,10 @@
           </div>
         </section>
 
-        <section class="panel" id="habitsPanel" data-panel="habits">
+        <section class="panel" id="habitsPanel" data-panel="habits" role="tabpanel" aria-labelledby="habitsTab">
           <div class="two-column">
             <form class="composer" id="habitForm">
-              <h3>Agregar habito</h3>
+              <h3 id="habitFormTitle">Agregar habito</h3>
               <label>
                 Nombre
                 <input id="habitName" type="text" placeholder="Ej: Leer 10 minutos" required />
@@ -130,6 +130,19 @@
                   <option value="Semanal">Semanal</option>
                 </select>
               </label>
+              <fieldset class="weekday-picker" id="habitDaysField" hidden>
+                <legend>Dias de realizacion</legend>
+                <div class="weekday-options">
+                  <label><input type="checkbox" name="habitDay" value="1" /><span>Lun</span></label>
+                  <label><input type="checkbox" name="habitDay" value="2" /><span>Mar</span></label>
+                  <label><input type="checkbox" name="habitDay" value="3" /><span>Mie</span></label>
+                  <label><input type="checkbox" name="habitDay" value="4" /><span>Jue</span></label>
+                  <label><input type="checkbox" name="habitDay" value="5" /><span>Vie</span></label>
+                  <label><input type="checkbox" name="habitDay" value="6" /><span>Sab</span></label>
+                  <label><input type="checkbox" name="habitDay" value="7" /><span>Dom</span></label>
+                </div>
+                <p class="form-status" id="habitDaysStatus" aria-live="polite"></p>
+              </fieldset>
               <label>
                 Hora sugerida
                 <input
@@ -139,7 +152,14 @@
                   placeholder="Ej: 08:00 o 11:00 p.m."
                 />
               </label>
-              <button class="primary-button" type="submit">Agregar habito</button>
+              <div class="form-actions">
+                <button class="primary-button" id="habitSubmitButton" type="submit">
+                  Agregar habito
+                </button>
+                <button class="secondary-button" id="habitCancelButton" type="button" hidden>
+                  Cancelar
+                </button>
+              </div>
             </form>
 
             <article class="section-block">
@@ -152,10 +172,10 @@
           </div>
         </section>
 
-        <section class="panel" id="trainingPanel" data-panel="training">
+        <section class="panel" id="trainingPanel" data-panel="training" role="tabpanel" aria-labelledby="trainingTab">
           <div class="two-column">
             <form class="composer" id="trainingForm">
-              <h3>Agregar rutina</h3>
+              <h3 id="trainingFormTitle">Agregar rutina</h3>
               <label>
                 Nombre
                 <input id="trainingName" type="text" placeholder="Ej: Piernas y gluteos" required />
@@ -180,7 +200,14 @@
                   required
                 ></textarea>
               </label>
-              <button class="primary-button" type="submit">Guardar rutina</button>
+              <div class="form-actions">
+                <button class="primary-button" id="trainingSubmitButton" type="submit">
+                  Guardar rutina
+                </button>
+                <button class="secondary-button" id="trainingCancelButton" type="button" hidden>
+                  Cancelar
+                </button>
+              </div>
             </form>
 
             <article class="section-block">
@@ -193,7 +220,7 @@
           </div>
         </section>
 
-        <section class="panel" id="foodPanel" data-panel="food">
+        <section class="panel" id="foodPanel" data-panel="food" role="tabpanel" aria-labelledby="foodTab">
           <div class="two-column">
             <form class="composer" id="foodForm">
               <h3>Registrar comida</h3>
@@ -228,7 +255,7 @@
           </div>
         </section>
 
-        <section class="panel" id="waterPanel" data-panel="water">
+        <section class="panel" id="waterPanel" data-panel="water" role="tabpanel" aria-labelledby="waterTab">
           <div class="water-layout">
             <article class="water-meter">
               <div class="water-sparkles" aria-hidden="true">
@@ -265,7 +292,7 @@
           </div>
         </section>
 
-        <section class="panel" id="progressPanel" data-panel="progress">
+        <section class="panel" id="progressPanel" data-panel="progress" role="tabpanel" aria-labelledby="progressTab">
           <div class="daily-grid progress-summary-grid">
             <article class="summary-card accent-green">
               <span>Semana</span>
@@ -353,7 +380,7 @@
                 <input id="importDataInput" type="file" accept="application/json" />
               </label>
             </div>
-            <p class="helper-text" id="backupStatus">Tus datos se guardan en este navegador.</p>
+            <p class="helper-text" id="backupStatus" aria-live="polite">Tus datos se guardan en este navegador.</p>
           </article>
         </section>
       </main>
