@@ -5,7 +5,15 @@ create extension if not exists pgtap with schema extensions;
 select plan(10);
 
 select has_table('public', 'user_states', 'user_states exists');
-select ok(row_security_active('public.user_states'::regclass), 'RLS is active');
+select is(
+  (
+    select relrowsecurity and relforcerowsecurity
+    from pg_catalog.pg_class
+    where oid = 'public.user_states'::regclass
+  ),
+  true,
+  'RLS is enabled and forced'
+);
 
 insert into auth.users (id, email)
 values
