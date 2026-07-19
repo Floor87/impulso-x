@@ -30,8 +30,9 @@ debe elegir silenciosamente una interpretacion.
 
 ## 3. Ramas y worktrees
 
-- `main` es protegida. Ningun agente crea commits, hace push ni despliega desde
-  `main` directamente.
+- `main` se trata siempre como protegida. Ningun agente crea commits, hace push
+  ni despliega desde `main` directamente, incluso durante el bootstrap previo a
+  activar la proteccion en GitHub.
 - Cada agente trabaja desde `origin/main` en un worktree exclusivo.
 - El nombre de rama es `agent/<issue>-<descripcion>`; correcciones urgentes usan
   `hotfix/<issue>-<descripcion>`.
@@ -115,8 +116,9 @@ pnpm test:e2e
 - Cada PR genera un preview aislado. Los previews nunca escriben en Supabase de
   produccion.
 - Solo un merge aprobado a `main` puede iniciar produccion.
-- Produccion usa el mismo artefacto construido y probado por CI; no se recompila
-  con configuracion diferente para promocionarlo.
+- Despues del merge, CI crea un candidato con variables de produccion, prueba esa
+  URL sin dominio y promociona exactamente ese artefacto; la promocion no
+  recompila.
 - Se verifica salud, manifest, iconos, flujo critico y version desplegada.
 - El despliegue anterior se conserva hasta completar la verificacion y debe poder
   promoverse para rollback inmediato.
