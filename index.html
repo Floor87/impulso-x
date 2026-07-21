@@ -12,15 +12,36 @@
     <link rel="apple-touch-icon" href="/icons/icon-180.png" />
   </head>
   <body class="intro-active">
-    <section class="intro-screen" id="introScreen" aria-label="Ingreso a IMPULSOX">
+    <section
+      class="intro-screen"
+      id="introScreen"
+      data-auth-view="welcome"
+      aria-label="Ingreso a IMPULSOX"
+    >
       <div class="particle-field" id="particleField" aria-hidden="true"></div>
       <div class="intro-layout">
         <div class="intro-content">
           <img class="intro-logo" src="/brand/impulsox-logo-transparent.png" alt="IMPULSOX" />
           <p class="intro-phrase">no importa el ritmo, ya le gané a mi yo del pasado</p>
+          <div class="intro-actions" id="introActions" aria-label="Opciones de acceso">
+            <button class="intro-action intro-action-primary" id="introLoginButton" type="button">
+              Ingresar
+            </button>
+            <button
+              class="intro-action intro-action-secondary"
+              id="introSignupButton"
+              type="button"
+            >
+              Crear cuenta
+            </button>
+          </div>
         </div>
 
-        <article class="auth-panel" id="authPanel" aria-labelledby="authTitle">
+        <article class="auth-panel" id="authPanel" aria-labelledby="authTitle" hidden>
+          <button class="auth-back" id="authBackButton" type="button">
+            <span aria-hidden="true">←</span>
+            Volver
+          </button>
           <div class="auth-mode-tabs" id="authModeTabs" role="tablist" aria-label="Acceso">
             <button
               class="auth-mode-button active"

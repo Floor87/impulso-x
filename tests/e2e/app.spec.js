@@ -7,20 +7,48 @@ const canAuthenticate =
   !externalBaseURL || Boolean(process.env.E2E_AUTH_EMAIL && process.env.E2E_AUTH_PASSWORD);
 
 async function signIn(page, email = testEmail) {
+  await page.locator("#introLoginButton").click();
   await page.getByLabel("Correo").fill(email);
   await page.getByLabel("Clave", { exact: true }).fill(testPassword);
-  await page.getByRole("button", { name: "Ingresar", exact: true }).last().click();
+  await page.locator("#authSubmitButton").click();
   await expect(page.locator(".app-shell")).not.toHaveAttribute("inert", "");
 }
 
-test("requires an account before opening the app", async ({ page }) => {
+test("shows a clean welcome before asking for account details", async ({ page }) => {
   await page.goto("/");
 
   await expect(page.locator(".app-shell")).toHaveAttribute("inert", "");
   await expect(page.getByRole("tab", { name: "Hoy", exact: true })).toHaveCount(0);
+  await expect(page.locator(".intro-logo")).toBeVisible();
+  await expect(page.getByText("no importa el ritmo, ya le gané a mi yo del pasado")).toBeVisible();
+  await expect(page.locator("#introLoginButton")).toBeVisible();
+  await expect(page.locator("#introSignupButton")).toBeVisible();
+  await expect(page.locator("#authPanel")).toBeHidden();
+  await expect(page.getByLabel("Correo")).toBeHidden();
+  await expect(page.getByLabel("Clave", { exact: true })).toBeHidden();
+
+  const dimensions = await page.evaluate(() => ({
+    clientWidth: document.documentElement.clientWidth,
+    scrollWidth: document.documentElement.scrollWidth,
+  }));
+  expect(dimensions.scrollWidth).toBeLessThanOrEqual(dimensions.clientWidth + 1);
+});
+
+test("opens the chosen form and returns to the welcome", async ({ page }) => {
+  await page.goto("/");
+  await page.locator("#introLoginButton").click();
+
   await expect(page.getByRole("heading", { name: "Ingresar", exact: true })).toBeVisible();
   await expect(page.getByLabel("Correo")).toBeVisible();
-  await expect(page.getByLabel("Clave", { exact: true })).toBeVisible();
+  await page.locator("#authBackButton").click();
+  await expect(page.locator("#authPanel")).toBeHidden();
+  await expect(page.getByLabel("Correo")).toBeHidden();
+  await expect(page.locator("#introLoginButton")).toBeFocused();
+
+  await page.locator("#introSignupButton").click();
+  await expect(page.getByRole("heading", { name: "Crear cuenta", exact: true })).toBeVisible();
+  await expect(page.getByLabel("Nombre de usuario")).toBeVisible();
+  await expect(page.getByLabel("Repetir clave")).toBeVisible();
 });
 
 test("serves a valid installable manifest", async ({ request }) => {
@@ -175,12 +203,12 @@ test("creates an account without persisting the password in browser storage", as
     "Account creation is verified with the isolated E2E service.",
   );
   await page.goto("/");
-  await page.getByRole("tab", { name: "Crear cuenta", exact: true }).click();
+  await page.locator("#introSignupButton").click();
   await page.getByLabel("Nombre de usuario").fill("Florencia");
   await page.getByLabel("Correo").fill("nueva@example.com");
   await page.getByLabel("Clave", { exact: true }).fill(testPassword);
   await page.getByLabel("Repetir clave").fill(testPassword);
-  await page.getByRole("button", { name: "Crear cuenta", exact: true }).last().click();
+  await page.locator("#authSubmitButton").click();
 
   await expect(page.locator(".app-shell")).not.toHaveAttribute("inert", "");
   const localStorageValues = await page.evaluate(() => Object.values(globalThis.localStorage));

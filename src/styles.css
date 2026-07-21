@@ -166,6 +166,11 @@ body.intro-active {
   margin: 0 auto;
 }
 
+.intro-screen[data-auth-view="welcome"] .intro-layout {
+  grid-template-columns: minmax(0, 780px);
+  justify-content: center;
+}
+
 .intro-content {
   display: grid;
   place-items: center;
@@ -193,6 +198,39 @@ body.intro-active {
   text-shadow: 0 0 14px rgba(255, 255, 255, 0.12);
 }
 
+.intro-actions {
+  display: grid;
+  grid-template-columns: 1fr;
+  width: min(360px, 100%);
+  gap: 10px;
+  margin-top: 22px;
+}
+
+.intro-action {
+  width: 100%;
+  min-height: 52px;
+  padding: 11px 18px;
+  border-radius: 7px;
+  font-weight: 900;
+}
+
+.intro-action-primary {
+  border: 1px solid #f0bd25;
+  background: #ffcc18;
+  color: #090909;
+  box-shadow: 0 12px 30px rgba(255, 204, 24, 0.2);
+}
+
+.intro-action-secondary {
+  border: 1px solid rgba(255, 255, 255, 0.32);
+  background: rgba(12, 16, 14, 0.7);
+  color: #fff;
+}
+
+.intro-action:active {
+  transform: translateY(1px);
+}
+
 .auth-panel {
   width: 100%;
   padding: 24px;
@@ -201,6 +239,19 @@ body.intro-active {
   background: rgba(12, 16, 14, 0.94);
   box-shadow: 0 22px 60px rgba(0, 0, 0, 0.48);
   backdrop-filter: blur(18px);
+}
+
+.auth-back {
+  display: inline-flex;
+  min-height: 38px;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 7px;
+  border: 0;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 0.84rem;
+  font-weight: 800;
 }
 
 .auth-mode-tabs {

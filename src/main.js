@@ -192,9 +192,8 @@ async function bootstrapAuthentication() {
       lockApp();
     }
   } catch {
-    authUi.setStatus(
+    authUi.showConfigurationError(
       "No pudimos conectar el acceso seguro. Intentá nuevamente más tarde.",
-      "error",
     );
   }
 }
@@ -300,7 +299,6 @@ function unlockApp() {
 }
 
 function lockApp({ preserveMode = false } = {}) {
-  const wasAlreadyLocked = appShell.inert && !currentUserId;
   currentUserId = null;
   state = null;
   repository = null;
@@ -311,8 +309,7 @@ function lockApp({ preserveMode = false } = {}) {
   introScreen.classList.remove("hidden");
   introScreen.removeAttribute("aria-hidden");
   accountName.textContent = "Usuario";
-  if (!preserveMode && !wasAlreadyLocked) authUi.setMode("login");
-  if (!wasAlreadyLocked || preserveMode) authUi.focus();
+  if (!preserveMode) authUi.showWelcome();
 }
 
 function loadTheme() {

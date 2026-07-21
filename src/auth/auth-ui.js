@@ -1,6 +1,10 @@
 export function createAuthUi({ root, onSignIn, onSignUp, onResetRequest, onPasswordUpdate }) {
   const elements = {
+    introActions: root.querySelector("#introActions"),
+    introLogin: root.querySelector("#introLoginButton"),
+    introSignup: root.querySelector("#introSignupButton"),
     panel: root.querySelector("#authPanel"),
+    backToWelcome: root.querySelector("#authBackButton"),
     tabs: root.querySelector("#authModeTabs"),
     loginMode: root.querySelector("#loginModeButton"),
     signupMode: root.querySelector("#signupModeButton"),
@@ -22,8 +26,12 @@ export function createAuthUi({ root, onSignIn, onSignUp, onResetRequest, onPassw
     submit: root.querySelector("#authSubmitButton"),
     status: root.querySelector("#authStatus"),
   };
-  let mode = "login";
+  let mode = "welcome";
+  let configurationMessage = null;
 
+  elements.introLogin.addEventListener("click", () => setMode("login"));
+  elements.introSignup.addEventListener("click", () => setMode("signup"));
+  elements.backToWelcome.addEventListener("click", showWelcome);
   elements.loginMode.addEventListener("click", () => setMode("login"));
   elements.signupMode.addEventListener("click", () => setMode("signup"));
   elements.forgot.addEventListener("click", () => setMode("forgot"));
@@ -62,6 +70,9 @@ export function createAuthUi({ root, onSignIn, onSignUp, onResetRequest, onPassw
 
   function setMode(nextMode) {
     mode = nextMode;
+    root.dataset.authView = "form";
+    elements.introActions.hidden = true;
+    elements.panel.hidden = false;
     const signup = mode === "signup";
     const forgot = mode === "forgot";
     const update = mode === "update";
@@ -96,6 +107,19 @@ export function createAuthUi({ root, onSignIn, onSignUp, onResetRequest, onPassw
     elements.password.type = "password";
     elements.confirmation.type = "password";
     clearStatus();
+    if (configurationMessage) setStatus(configurationMessage, "error");
+    focusPrimaryField();
+  }
+
+  function showWelcome() {
+    mode = "welcome";
+    root.dataset.authView = "welcome";
+    elements.introActions.hidden = false;
+    elements.panel.hidden = true;
+    elements.form.reset();
+    elements.password.type = "password";
+    elements.confirmation.type = "password";
+    clearStatus();
     focusPrimaryField();
   }
 
@@ -124,9 +148,10 @@ export function createAuthUi({ root, onSignIn, onSignUp, onResetRequest, onPassw
 
   function setBusy(busy) {
     elements.form.setAttribute("aria-busy", String(busy));
-    elements.submit.disabled = busy;
-    elements.loginMode.disabled = busy;
-    elements.signupMode.disabled = busy;
+    elements.submit.disabled = busy || Boolean(configurationMessage);
+    elements.loginMode.disabled = busy || Boolean(configurationMessage);
+    elements.signupMode.disabled = busy || Boolean(configurationMessage);
+    elements.backToWelcome.disabled = busy;
   }
 
   function setStatus(message, tone = "info") {
@@ -140,22 +165,27 @@ export function createAuthUi({ root, onSignIn, onSignUp, onResetRequest, onPassw
   }
 
   function focusPrimaryField() {
-    if (mode === "signup") elements.name.focus();
+    if (mode === "welcome") elements.introLogin.focus();
+    else if (mode === "signup") elements.name.focus();
     else if (mode === "update") elements.password.focus();
     else elements.email.focus();
   }
 
-  setMode("login");
+  showWelcome();
 
   return {
     focus: focusPrimaryField,
     setMode,
+    showWelcome,
     setStatus,
-    showConfigurationError() {
-      setStatus("El acceso seguro todavía no está conectado a un entorno de Supabase.", "error");
+    showConfigurationError(
+      message = "El acceso seguro todavía no está conectado a un entorno de Supabase.",
+    ) {
+      configurationMessage = message;
       elements.submit.disabled = true;
       elements.loginMode.disabled = true;
       elements.signupMode.disabled = true;
+      if (mode !== "welcome") setStatus(configurationMessage, "error");
     },
   };
 }
