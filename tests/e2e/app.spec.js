@@ -27,11 +27,19 @@ test("shows a clean welcome before asking for account details", async ({ page })
   await expect(page.getByLabel("Correo")).toBeHidden();
   await expect(page.getByLabel("Clave", { exact: true })).toBeHidden();
 
-  const dimensions = await page.evaluate(() => ({
-    clientWidth: document.documentElement.clientWidth,
-    scrollWidth: document.documentElement.scrollWidth,
-  }));
+  const dimensions = await page.evaluate(() => {
+    const content = document.querySelector(".intro-content").getBoundingClientRect();
+
+    return {
+      clientWidth: document.documentElement.clientWidth,
+      scrollWidth: document.documentElement.scrollWidth,
+      contentCenterRatio:
+        (content.top + content.height / 2) / document.documentElement.clientHeight,
+    };
+  });
   expect(dimensions.scrollWidth).toBeLessThanOrEqual(dimensions.clientWidth + 1);
+  expect(dimensions.contentCenterRatio).toBeGreaterThan(0.4);
+  expect(dimensions.contentCenterRatio).toBeLessThan(0.6);
 });
 
 test("opens the chosen form and returns to the welcome", async ({ page }) => {

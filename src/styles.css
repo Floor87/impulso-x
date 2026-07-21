@@ -1659,6 +1659,10 @@ body[data-theme="dark"] .goal-bar {
     gap: 22px;
   }
 
+  .intro-screen[data-auth-view="welcome"] .intro-layout {
+    min-height: calc(100dvh - 64px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  }
+
   .intro-logo {
     max-height: 18vh;
   }
@@ -1728,6 +1732,10 @@ body[data-theme="dark"] .goal-bar {
 
   .intro-screen {
     padding: calc(18px + env(safe-area-inset-top)) 14px calc(18px + env(safe-area-inset-bottom));
+  }
+
+  .intro-screen[data-auth-view="welcome"] .intro-layout {
+    min-height: calc(100dvh - 36px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
   }
 
   .intro-logo {
