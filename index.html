@@ -14,11 +14,104 @@
   <body class="intro-active">
     <section class="intro-screen" id="introScreen" aria-label="Ingreso a IMPULSOX">
       <div class="particle-field" id="particleField" aria-hidden="true"></div>
-      <div class="intro-content">
-        <img class="intro-logo" src="/brand/impulsox-logo-transparent.png" alt="IMPULSOX" />
-        <p class="intro-phrase">no importa el ritmo, ya le gane a mi yo del pasado</p>
+      <div class="intro-layout">
+        <div class="intro-content">
+          <img class="intro-logo" src="/brand/impulsox-logo-transparent.png" alt="IMPULSOX" />
+          <p class="intro-phrase">no importa el ritmo, ya le gané a mi yo del pasado</p>
+        </div>
+
+        <article class="auth-panel" id="authPanel" aria-labelledby="authTitle">
+          <div class="auth-mode-tabs" id="authModeTabs" role="tablist" aria-label="Acceso">
+            <button
+              class="auth-mode-button active"
+              id="loginModeButton"
+              type="button"
+              role="tab"
+              aria-selected="true"
+            >
+              Ingresar
+            </button>
+            <button
+              class="auth-mode-button"
+              id="signupModeButton"
+              type="button"
+              role="tab"
+              aria-selected="false"
+            >
+              Crear cuenta
+            </button>
+          </div>
+
+          <div class="auth-heading">
+            <h2 id="authTitle">Ingresar</h2>
+            <p id="authSubtitle">Volvé a tu progreso.</p>
+          </div>
+
+          <form class="auth-form" id="authForm">
+            <label class="auth-field" id="authNameField" hidden>
+              Nombre de usuario
+              <input
+                id="authName"
+                type="text"
+                autocomplete="name"
+                maxlength="80"
+                placeholder="Cómo querés que te llamemos"
+              />
+            </label>
+
+            <label class="auth-field" id="authEmailField">
+              Correo
+              <input
+                id="authEmail"
+                type="email"
+                autocomplete="email"
+                inputmode="email"
+                placeholder="tu@correo.com"
+                required
+              />
+            </label>
+
+            <label class="auth-field" id="authPasswordField">
+              Clave
+              <input
+                id="authPassword"
+                type="password"
+                autocomplete="current-password"
+                minlength="8"
+                placeholder="Mínimo 8 caracteres"
+                required
+              />
+            </label>
+
+            <label class="auth-field" id="authPasswordConfirmationField" hidden>
+              Repetir clave
+              <input
+                id="authPasswordConfirmation"
+                type="password"
+                autocomplete="new-password"
+                minlength="8"
+                placeholder="Repetí la clave"
+              />
+            </label>
+
+            <div class="auth-options">
+              <label class="password-visibility" id="passwordVisibilityField">
+                <input id="passwordVisibility" type="checkbox" />
+                <span>Mostrar clave</span>
+              </label>
+              <button class="auth-link" id="forgotPasswordButton" type="button">
+                Olvidé mi clave
+              </button>
+              <button class="auth-link" id="backToLoginButton" type="button" hidden>
+                Volver a ingresar
+              </button>
+            </div>
+
+            <button class="auth-submit" id="authSubmitButton" type="submit">Ingresar</button>
+            <p class="auth-status" id="authStatus" aria-live="polite"></p>
+          </form>
+        </article>
       </div>
-      <button class="intro-button" id="startAppButton" type="button">Iniciar</button>
     </section>
 
     <div class="app-shell">
@@ -84,6 +177,10 @@
             <h2 id="sectionTitle">Tu dia de hoy</h2>
           </div>
           <div class="topbar-actions">
+            <div class="account-control" aria-label="Cuenta activa">
+              <span id="accountName">Usuario</span>
+              <button class="account-signout" id="signOutButton" type="button">Salir</button>
+            </div>
             <label class="theme-switch" for="themeToggle">
               <input id="themeToggle" type="checkbox" />
               <span class="switch-track" aria-hidden="true">

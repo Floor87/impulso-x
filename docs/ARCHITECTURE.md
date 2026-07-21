@@ -9,6 +9,8 @@ trabajar con limites claros.
 ## Capas
 
 - `src/domain`: funciones puras de fechas, programacion, progreso y validacion.
+- `src/auth`: contrato de acceso, adaptador de Supabase Auth e interfaz de
+  ingreso, alta y recuperacion.
 - `src/data`: contrato `DataRepository`, migraciones y adaptadores de
   persistencia.
 - `src/features`: comportamiento de habitos, entrenamiento, alimentacion, agua y
@@ -30,13 +32,27 @@ repository.export();
 repository.import(serializedState);
 ```
 
-`LocalDataRepository` mantiene compatibilidad con `impulsox-state` y migra la
-clave historica `ritmo-diario-state`. Ninguna funcion accede directamente a
-`localStorage`.
+`LocalDataRepository` mantiene compatibilidad con `impulsox-state`, migra la
+clave historica `ritmo-diario-state` y luego guarda cada estado bajo una clave
+derivada del `user.id` autenticado. Solo la primera cuenta que ingresa puede
+reclamar los datos locales previos; otra cuenta no puede leerlos. Ninguna funcion
+accede directamente a `localStorage`.
 
 Una futura implementacion `SupabaseDataRepository` podra usar el mismo contrato
-una vez que exista autenticacion. Hasta entonces, la nube no debe sustituir el
-almacenamiento local ni provocar perdida de datos.
+para sincronizar dispositivos. Hasta entonces, Supabase autentica la identidad,
+pero la nube no sustituye el almacenamiento local ni debe provocar perdida de
+datos.
+
+## Autenticacion
+
+- El navegador usa solo `VITE_SUPABASE_URL` y una publishable key publica.
+- La clave de la persona nunca se guarda en el estado de IMPULSOX.
+- Supabase gestiona la sesion persistente, la confirmacion de correo y la
+  recuperacion de clave mediante PKCE.
+- `display_name` es metadato de presentacion. Las reglas de autorizacion usan
+  exclusivamente `user.id`.
+- `MockAuthService` existe solo en builds E2E aislados y queda excluido del build
+  normal. No es un mecanismo de acceso local o de produccion.
 
 ## Estado
 

@@ -31,9 +31,14 @@ flujo controlado.
 ## Variables
 
 - `VITE_SUPABASE_URL`: URL publica del entorno correspondiente.
-- `VITE_SUPABASE_ANON_KEY`: clave publica anon del entorno correspondiente.
+- `VITE_SUPABASE_PUBLISHABLE_KEY`: publishable key publica del entorno
+  correspondiente.
+- `VITE_SUPABASE_ANON_KEY`: alternativa heredada temporal si el proyecto todavia
+  no dispone de publishable key.
 - `SUPABASE_ACCESS_TOKEN`: solo CI administrativo, nunca expuesto a Vite.
 - `SUPABASE_DB_PASSWORD`: solo tareas protegidas de migracion.
+- `E2E_AUTH_EMAIL` y `E2E_AUTH_PASSWORD`: cuenta tecnica sin privilegios para
+  probar un candidato remoto; solo secretos de GitHub y nunca variables Vite.
 
 Los previews deben apuntar exclusivamente a staging. `service_role` no es una
 variable valida para esta aplicacion cliente.

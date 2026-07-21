@@ -30,6 +30,7 @@ export default defineConfig({
     ? undefined
     : {
         command: "pnpm build && pnpm preview --host 127.0.0.1 --port 4173",
+        env: { ...process.env, VITE_AUTH_E2E_MOCK: "true" },
         url: localBaseURL,
         reuseExistingServer: !process.env.CI,
         timeout: 120000,

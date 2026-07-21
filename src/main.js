@@ -1,5 +1,8 @@
 import "./styles.css";
 
+import { createAuthService } from "./auth/create-auth-service.js";
+import { createAuthUi } from "./auth/auth-ui.js";
+import { getUserLabel } from "./auth/supabase-auth-service.js";
 import { LocalDataRepository } from "./data/local-data-repository.js";
 import { createDefaultState, createId, normalizeDay, normalizeState } from "./data/state.js";
 import { getDateKeyFromDate, getLocalDateKey } from "./domain/date.js";
@@ -22,17 +25,13 @@ import {
 import { changeWater, updateWaterGoal } from "./features/water.js";
 import { activateTab, bindTabNavigation } from "./ui/navigation.js";
 
-const repository = new LocalDataRepository();
+const preferenceRepository = new LocalDataRepository();
+let repository = null;
+let authService = null;
+let currentUserId = null;
 let currentDayKey = getLocalDateKey();
 let startupPersistenceError = null;
-let state;
-
-try {
-  state = repository.load();
-} catch (error) {
-  startupPersistenceError = error;
-  state = normalizeState(createDefaultState());
-}
+let state = null;
 
 let activeTab = "today";
 let editingHabitId = null;
@@ -61,7 +60,6 @@ const tabs = document.querySelectorAll(".tab");
 const panels = document.querySelectorAll(".panel");
 const introScreen = document.querySelector("#introScreen");
 const particleField = document.querySelector("#particleField");
-const startAppButton = document.querySelector("#startAppButton");
 const themeToggle = document.querySelector("#themeToggle");
 const themeLabel = document.querySelector("#themeLabel");
 const sectionTitle = document.querySelector("#sectionTitle");
@@ -69,6 +67,8 @@ const currentDate = document.querySelector("#currentDate");
 const resetTodayButton = document.querySelector("#resetTodayButton");
 const installButton = document.querySelector("#installButton");
 const appShell = document.querySelector(".app-shell");
+const accountName = document.querySelector("#accountName");
+const signOutButton = document.querySelector("#signOutButton");
 
 const habitForm = document.querySelector("#habitForm");
 const habitName = document.querySelector("#habitName");
@@ -132,6 +132,13 @@ let statusAction = null;
 let pendingStartupNotice = null;
 const appStatus = createAppStatus();
 const restoreDataButton = createRestoreDataButton();
+const authUi = createAuthUi({
+  root: introScreen,
+  onSignIn: signIn,
+  onSignUp: signUp,
+  onResetRequest: requestPasswordReset,
+  onPasswordUpdate: updatePassword,
+});
 
 appShell.inert = true;
 appShell.setAttribute("aria-hidden", "true");
@@ -167,9 +174,150 @@ function createIntroParticles() {
   particleField.append(fragment);
 }
 
+async function bootstrapAuthentication() {
+  try {
+    authService = await createAuthService();
+    if (!authService) {
+      authUi.showConfigurationError();
+      return;
+    }
+
+    authService.onAuthStateChange((event, session) => {
+      window.setTimeout(() => handleAuthEvent(event, session), 0);
+    });
+    const session = await authService.getSession();
+    if (session) {
+      await enterAuthenticatedApp(session);
+    } else {
+      lockApp();
+    }
+  } catch {
+    authUi.setStatus(
+      "No pudimos conectar el acceso seguro. Intentá nuevamente más tarde.",
+      "error",
+    );
+  }
+}
+
+async function handleAuthEvent(event, session) {
+  if (event === "PASSWORD_RECOVERY") {
+    lockApp({ preserveMode: true });
+    authUi.setMode("update");
+    return;
+  }
+  if (event === "SIGNED_OUT") {
+    lockApp();
+    return;
+  }
+  if ((event === "SIGNED_IN" || event === "INITIAL_SESSION") && session) {
+    await enterAuthenticatedApp(session);
+  }
+}
+
+async function signIn(credentials) {
+  const session = await authService.signIn(credentials);
+  if (session) await enterAuthenticatedApp(session);
+}
+
+async function signUp(credentials) {
+  const data = await authService.signUp({
+    ...credentials,
+    redirectTo: getAuthRedirectUrl(),
+  });
+  if (data.session) {
+    await enterAuthenticatedApp(data.session);
+    return null;
+  }
+  return {
+    message: "Cuenta creada. Revisá tu correo para confirmarla antes de ingresar.",
+    nextMode: "login",
+  };
+}
+
+async function requestPasswordReset(email) {
+  await authService.requestPasswordReset(email, getAuthRedirectUrl());
+  return {
+    message: "Si el correo está registrado, vas a recibir un enlace para cambiar la clave.",
+    nextMode: "login",
+  };
+}
+
+async function updatePassword(password) {
+  await authService.updatePassword(password);
+  const session = await authService.getSession();
+  if (session) await enterAuthenticatedApp(session);
+  return { message: "La clave fue actualizada." };
+}
+
+function getAuthRedirectUrl() {
+  return `${window.location.origin}${window.location.pathname}`;
+}
+
+async function enterAuthenticatedApp(session) {
+  const user = session?.user;
+  if (!user?.id || (currentUserId === user.id && state)) return;
+
+  currentUserId = user.id;
+  repository = new LocalDataRepository(globalThis.localStorage, { userId: user.id });
+  try {
+    state = repository.load();
+  } catch (error) {
+    startupPersistenceError = error;
+    state = normalizeState(createDefaultState());
+  }
+
+  currentDayKey = getLocalDateKey();
+  selectedHistoryDate = currentDayKey;
+  accountName.textContent = getUserLabel(user);
+  render();
+  syncRecoveryAvailability();
+
+  const repositoryNotice = repository.consumeNotice();
+  if (startupPersistenceError) {
+    pendingStartupNotice = { message: startupPersistenceError.message, tone: "error" };
+    startupPersistenceError = null;
+  } else if (repositoryNotice) {
+    pendingStartupNotice = { message: repositoryNotice.message, tone: "warning" };
+  }
+  unlockApp();
+}
+
+function unlockApp() {
+  introScreen.classList.add("hidden");
+  introScreen.setAttribute("aria-hidden", "true");
+  document.body.classList.remove("intro-active");
+  appShell.inert = false;
+  appShell.removeAttribute("aria-hidden");
+  sectionTitle.tabIndex = -1;
+  sectionTitle.focus();
+  if (pendingStartupNotice) {
+    showAppStatus(pendingStartupNotice.message, {
+      tone: pendingStartupNotice.tone,
+      persistent: true,
+    });
+    pendingStartupNotice = null;
+  }
+}
+
+function lockApp({ preserveMode = false } = {}) {
+  const wasAlreadyLocked = appShell.inert && !currentUserId;
+  currentUserId = null;
+  state = null;
+  repository = null;
+  hideAppStatus();
+  appShell.inert = true;
+  appShell.setAttribute("aria-hidden", "true");
+  document.body.classList.add("intro-active");
+  introScreen.classList.remove("hidden");
+  introScreen.removeAttribute("aria-hidden");
+  accountName.textContent = "Usuario";
+  if (!preserveMode && !wasAlreadyLocked) authUi.setMode("login");
+  if (!wasAlreadyLocked || preserveMode) authUi.focus();
+}
+
 function loadTheme() {
   try {
-    return repository.getPreference("theme", "light");
+    return preferenceRepository.getPreference("theme", "light");
   } catch (error) {
     startupPersistenceError ||= error;
     return "light";
@@ -182,13 +330,14 @@ function applyTheme(theme) {
   themeToggle.checked = nextTheme === "dark";
   themeLabel.textContent = nextTheme === "dark" ? "Oscuro" : "Claro";
   try {
-    repository.setPreference("theme", nextTheme);
+    preferenceRepository.setPreference("theme", nextTheme);
   } catch (error) {
     showPersistenceError(error);
   }
 }
 
 function saveState() {
+  if (!repository || !state) return false;
   try {
     state = repository.save(state);
     return true;
@@ -339,6 +488,7 @@ function setActiveTab(tabName) {
 }
 
 function render() {
+  if (!state || !repository) return;
   const day = getDay();
   syncCurrentDayPlan(day);
   const dateFormatter = new Intl.DateTimeFormat("es-AR", {
@@ -879,22 +1029,19 @@ habitDayInputs.forEach((input) => {
 habitCancelButton.addEventListener("click", resetHabitForm);
 trainingCancelButton.addEventListener("click", resetTrainingForm);
 
-startAppButton.addEventListener("click", () => {
-  introScreen.classList.add("hidden");
-  introScreen.setAttribute("aria-hidden", "true");
-  document.body.classList.remove("intro-active");
-  appShell.inert = false;
-  appShell.removeAttribute("aria-hidden");
-  sectionTitle.tabIndex = -1;
-  sectionTitle.focus();
-  if (pendingStartupNotice) {
-    showAppStatus(pendingStartupNotice.message, {
-      tone: pendingStartupNotice.tone,
+signOutButton.addEventListener("click", async () => {
+  signOutButton.disabled = true;
+  try {
+    await authService.signOut();
+    lockApp();
+  } catch {
+    showAppStatus("No pudimos cerrar la sesión. Intentá nuevamente.", {
+      tone: "error",
       persistent: true,
     });
-    pendingStartupNotice = null;
+  } finally {
+    signOutButton.disabled = false;
   }
-  window.setTimeout(() => introScreen.remove(), 380);
 });
 
 habitForm.addEventListener("submit", (event) => {
@@ -1047,21 +1194,8 @@ importDataInput.addEventListener("change", async () => {
 
 syncHabitDayPicker(true);
 setActiveTab(activeTab);
-render();
-syncRecoveryAvailability();
-const repositoryNotice = repository.consumeNotice();
-if (startupPersistenceError) {
-  pendingStartupNotice = {
-    message: startupPersistenceError.message,
-    tone: "error",
-  };
-} else if (repositoryNotice && !pendingStartupNotice) {
-  pendingStartupNotice = {
-    message: repositoryNotice.message,
-    tone: "warning",
-  };
-}
 watchForNewDay();
+void bootstrapAuthentication();
 
 let deferredInstallPrompt = null;
 
@@ -1092,7 +1226,7 @@ function watchForNewDay() {
 
     currentDayKey = nextDayKey;
     selectedHistoryDate = currentDayKey;
-    render();
+    if (state) render();
   };
 
   window.setInterval(checkForNewDay, 60000);

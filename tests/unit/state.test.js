@@ -6,6 +6,7 @@ import {
   LocalDataRepository,
   RECOVERY_STORAGE_KEY,
   STATE_STORAGE_KEY,
+  USER_STATE_OWNER_STORAGE_KEY,
 } from "../../src/data/local-data-repository.js";
 import { normalizeState, STATE_VERSION } from "../../src/data/state.js";
 
@@ -145,5 +146,43 @@ describe("state migrations and repository", () => {
     expect(() => repository.save(validState())).toThrowError(
       expect.objectContaining({ code: "storage-write-failed" }),
     );
+  });
+
+  it("lets only the first authenticated user claim existing local data", () => {
+    const storage = new MemoryStorage({ [STATE_STORAGE_KEY]: JSON.stringify(validState()) });
+    const firstUserRepository = new LocalDataRepository(storage, { userId: "user-a" });
+    const secondUserRepository = new LocalDataRepository(storage, { userId: "user-b" });
+
+    const firstState = firstUserRepository.load();
+    const secondState = secondUserRepository.load();
+
+    expect(firstState.days["2026-07-17"].note).toBe("Bien");
+    expect(secondState.days).toEqual({});
+    expect(storage.getItem(USER_STATE_OWNER_STORAGE_KEY)).toBe("user-a");
+  });
+
+  it("keeps state and recovery copies isolated between users", () => {
+    const storage = new MemoryStorage();
+    const firstUserRepository = new LocalDataRepository(storage, { userId: "user-a" });
+    const secondUserRepository = new LocalDataRepository(storage, { userId: "user-b" });
+    const firstState = normalizeState(validState());
+    const secondState = normalizeState({
+      ...validState(),
+      days: {
+        "2026-07-17": {
+          ...validState().days["2026-07-17"],
+          note: "Estado de B",
+        },
+      },
+    });
+
+    firstUserRepository.save(firstState);
+    firstUserRepository.createRecoveryPoint(firstState, "test-a");
+    secondUserRepository.save(secondState);
+
+    expect(firstUserRepository.load().days["2026-07-17"].note).toBe("Bien");
+    expect(secondUserRepository.load().days["2026-07-17"].note).toBe("Estado de B");
+    expect(firstUserRepository.getRecoveryInfo()?.reason).toBe("test-a");
+    expect(secondUserRepository.getRecoveryInfo()).toBeNull();
   });
 });
