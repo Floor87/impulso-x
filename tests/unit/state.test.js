@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  CORRUPT_STATE_STORAGE_KEY,
   LEGACY_STATE_STORAGE_KEY,
   LocalDataRepository,
+  RECOVERY_STORAGE_KEY,
   STATE_STORAGE_KEY,
 } from "../../src/data/local-data-repository.js";
 import { normalizeState, STATE_VERSION } from "../../src/data/state.js";
@@ -18,6 +20,12 @@ class MemoryStorage {
 
   setItem(key, value) {
     this.entries.set(key, value);
+  }
+}
+
+class FailingStorage extends MemoryStorage {
+  setItem() {
+    throw new Error("quota exceeded");
   }
 }
 
@@ -78,5 +86,64 @@ describe("state migrations and repository", () => {
 
     expect(imported.days["2026-07-17"].note).toBe("Bien");
     expect(JSON.parse(storage.getItem(STATE_STORAGE_KEY)).version).toBe(STATE_VERSION);
+  });
+
+  it("isolates a corrupt current state and restores the valid legacy copy", () => {
+    const storage = new MemoryStorage({
+      [STATE_STORAGE_KEY]: "{broken",
+      [LEGACY_STATE_STORAGE_KEY]: JSON.stringify(validState()),
+    });
+    const repository = new LocalDataRepository(storage);
+
+    const state = repository.load();
+
+    expect(state.days["2026-07-17"].note).toBe("Bien");
+    expect(JSON.parse(storage.getItem(CORRUPT_STATE_STORAGE_KEY)).raw).toBe("{broken");
+    expect(repository.consumeNotice()?.code).toBe("corrupt-state-restored");
+  });
+
+  it("keeps a recoverable copy when all stored state is corrupt", () => {
+    const storage = new MemoryStorage({ [STATE_STORAGE_KEY]: "not-json" });
+    const repository = new LocalDataRepository(storage);
+
+    const state = repository.load();
+
+    expect(state.version).toBe(STATE_VERSION);
+    expect(JSON.parse(storage.getItem(CORRUPT_STATE_STORAGE_KEY)).raw).toBe("not-json");
+    expect(repository.consumeNotice()?.code).toBe("corrupt-state-reset");
+  });
+
+  it("creates and restores a recovery point before destructive changes", () => {
+    const storage = new MemoryStorage();
+    const repository = new LocalDataRepository(storage);
+    const original = normalizeState(validState());
+    repository.save(original);
+    repository.createRecoveryPoint(original, "reset-today");
+
+    const changed = normalizeState({ ...validState(), days: {} });
+    repository.save(changed);
+    const restored = repository.restoreRecoveryPoint();
+
+    expect(restored.days["2026-07-17"].note).toBe("Bien");
+    expect(JSON.parse(storage.getItem(RECOVERY_STORAGE_KEY)).reason).toBe("reset-today");
+  });
+
+  it("rejects backups from another app or a newer state version", () => {
+    const repository = new LocalDataRepository(new MemoryStorage());
+
+    expect(() => repository.validateImport({ app: "OTRA", state: validState() })).toThrow(
+      "no pertenece",
+    );
+    expect(() =>
+      repository.validateImport({ ...validState(), version: STATE_VERSION + 1 }),
+    ).toThrow("version mas nueva");
+  });
+
+  it("reports storage write failures instead of hiding them", () => {
+    const repository = new LocalDataRepository(new FailingStorage());
+
+    expect(() => repository.save(validState())).toThrowError(
+      expect.objectContaining({ code: "storage-write-failed" }),
+    );
   });
 });

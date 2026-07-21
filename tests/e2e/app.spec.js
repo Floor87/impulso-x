@@ -21,6 +21,18 @@ test("navigates through every daily area", async ({ page }) => {
   }
 });
 
+test("keeps the app inaccessible until the intro is completed", async ({ page }) => {
+  await page.reload();
+
+  await expect(page.locator(".app-shell")).toHaveAttribute("inert", "");
+  await expect(page.getByRole("tab")).toHaveCount(0);
+  await page.getByRole("button", { name: "Iniciar", exact: true }).click();
+
+  await expect(page.locator(".app-shell")).not.toHaveAttribute("inert", "");
+  await expect(page.locator("#sectionTitle")).toBeFocused();
+  await expect(page.getByRole("tab")).toHaveCount(6);
+});
+
 test("persists theme and user data after reload", async ({ page }) => {
   await page.locator(".theme-switch").click();
   await expect(page.locator("#themeToggle")).toBeChecked();
@@ -50,6 +62,44 @@ test("celebrates the water goal and records history", async ({ page }) => {
   await expect(page.locator("#waterAmount")).toHaveText("250 ml");
   await page.getByRole("tab", { name: "Progreso", exact: true }).click();
   await expect(page.locator("#historyList .history-day").first()).toBeVisible();
+});
+
+test("counts the complete seven-day window in weekly goals", async ({ page }) => {
+  await page.getByRole("tab", { name: "Progreso", exact: true }).click();
+
+  const waterGoal = page.locator(".goal-card").filter({ hasText: "Agua" });
+  const foodGoal = page.locator(".goal-card").filter({ hasText: "Alimentacion" });
+  await expect(waterGoal.locator("strong")).toHaveText("0/7");
+  await expect(foodGoal.locator("strong")).toHaveText("0/7");
+});
+
+test("offers undo after resetting today's data", async ({ page }) => {
+  await page.locator("#dailyNote").fill("Hoy tuve mucha energia");
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.getByRole("button", { name: "Reiniciar dia", exact: true }).click();
+
+  await expect(page.locator("#dailyNote")).toHaveValue("");
+  await expect(page.locator(".app-status")).toContainText("El dia fue reiniciado.");
+  await page.getByRole("button", { name: "Deshacer", exact: true }).click();
+
+  await expect(page.locator("#dailyNote")).toHaveValue("Hoy tuve mucha energia");
+  await expect(page.locator(".app-status")).toContainText("Recuperamos todos los datos del dia.");
+  await page.getByRole("tab", { name: "Progreso", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "Recuperar ultimo cambio", exact: true }),
+  ).toBeVisible();
+});
+
+test("isolates corrupt local data and explains the recovery", async ({ page }) => {
+  await page.evaluate(() => globalThis.localStorage.setItem("impulsox-state", "{broken"));
+  await page.reload();
+  await page.getByRole("button", { name: "Iniciar", exact: true }).click();
+
+  await expect(page.locator(".app-status")).toContainText("Aislamos datos danados");
+  const corruptCopy = await page.evaluate(() =>
+    globalThis.localStorage.getItem("impulsox-corrupt-state"),
+  );
+  expect(corruptCopy).toContain("{broken");
 });
 
 test("has no horizontal page overflow", async ({ page }) => {

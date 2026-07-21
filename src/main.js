@@ -1,9 +1,16 @@
 import "./styles.css";
 
 import { LocalDataRepository } from "./data/local-data-repository.js";
-import { createId, normalizeDay } from "./data/state.js";
-import { getDateKeyFromDate, getLocalDateKey, getRecentDateKeys } from "./domain/date.js";
-import { getCalendarLevel, getDayStats } from "./domain/progress.js";
+import { createDefaultState, createId, normalizeDay, normalizeState } from "./data/state.js";
+import { getDateKeyFromDate, getLocalDateKey } from "./domain/date.js";
+import {
+  getCalendarLevel,
+  getDayStats,
+  getHabitStreak,
+  getPerfectDayStreak,
+  getWeeklyGoals,
+  getWeeklySummary,
+} from "./domain/progress.js";
 import { createDayPlan, normalizeHabitDays, normalizeTime } from "./domain/schedule.js";
 import { addMeal, removeMeal } from "./features/food.js";
 import { removeHabit, toggleHabit as toggleHabitState, upsertHabit } from "./features/habits.js";
@@ -17,7 +24,16 @@ import { activateTab, bindTabNavigation } from "./ui/navigation.js";
 
 const repository = new LocalDataRepository();
 let currentDayKey = getLocalDateKey();
-let state = repository.load();
+let startupPersistenceError = null;
+let state;
+
+try {
+  state = repository.load();
+} catch (error) {
+  startupPersistenceError = error;
+  state = normalizeState(createDefaultState());
+}
+
 let activeTab = "today";
 let editingHabitId = null;
 let editingRoutineId = null;
@@ -52,6 +68,7 @@ const sectionTitle = document.querySelector("#sectionTitle");
 const currentDate = document.querySelector("#currentDate");
 const resetTodayButton = document.querySelector("#resetTodayButton");
 const installButton = document.querySelector("#installButton");
+const appShell = document.querySelector(".app-shell");
 
 const habitForm = document.querySelector("#habitForm");
 const habitName = document.querySelector("#habitName");
@@ -107,9 +124,19 @@ const weeklyGoalList = document.querySelector("#weeklyGoalList");
 const exportDataButton = document.querySelector("#exportDataButton");
 const importDataInput = document.querySelector("#importDataInput");
 const backupStatus = document.querySelector("#backupStatus");
+const backupActions = document.querySelector(".backup-actions");
 
 let selectedHistoryDate = currentDayKey;
+let statusTimer = null;
+let statusAction = null;
+let pendingStartupNotice = null;
+const appStatus = createAppStatus();
+const restoreDataButton = createRestoreDataButton();
 
+appShell.inert = true;
+appShell.setAttribute("aria-hidden", "true");
+introScreen.setAttribute("role", "dialog");
+introScreen.setAttribute("aria-modal", "true");
 applyTheme(loadTheme());
 createIntroParticles();
 
@@ -141,7 +168,12 @@ function createIntroParticles() {
 }
 
 function loadTheme() {
-  return repository.getPreference("theme", "light");
+  try {
+    return repository.getPreference("theme", "light");
+  } catch (error) {
+    startupPersistenceError ||= error;
+    return "light";
+  }
 }
 
 function applyTheme(theme) {
@@ -149,11 +181,133 @@ function applyTheme(theme) {
   document.body.dataset.theme = nextTheme;
   themeToggle.checked = nextTheme === "dark";
   themeLabel.textContent = nextTheme === "dark" ? "Oscuro" : "Claro";
-  repository.setPreference("theme", nextTheme);
+  try {
+    repository.setPreference("theme", nextTheme);
+  } catch (error) {
+    showPersistenceError(error);
+  }
 }
 
 function saveState() {
-  state = repository.save(state);
+  try {
+    state = repository.save(state);
+    return true;
+  } catch (error) {
+    showPersistenceError(error);
+    return false;
+  }
+}
+
+function createAppStatus() {
+  const element = document.createElement("div");
+  element.className = "app-status";
+  element.hidden = true;
+  element.setAttribute("role", "status");
+  element.setAttribute("aria-live", "polite");
+  element.innerHTML = `
+    <p></p>
+    <div class="app-status-actions">
+      <button class="app-status-action" type="button" hidden></button>
+      <button class="app-status-close" type="button" aria-label="Cerrar aviso">×</button>
+    </div>
+  `;
+  document.body.append(element);
+
+  const actionButton = element.querySelector(".app-status-action");
+  const closeButton = element.querySelector(".app-status-close");
+  actionButton.addEventListener("click", () => {
+    const action = statusAction;
+    hideAppStatus();
+    action?.();
+  });
+  closeButton.addEventListener("click", hideAppStatus);
+
+  return {
+    element,
+    message: element.querySelector("p"),
+    actionButton,
+  };
+}
+
+function showAppStatus(
+  message,
+  { tone = "info", actionLabel = "", onAction = null, persistent = false } = {},
+) {
+  window.clearTimeout(statusTimer);
+  statusAction = onAction;
+  appStatus.message.textContent = message;
+  appStatus.element.dataset.tone = tone;
+  appStatus.element.setAttribute("role", tone === "error" ? "alert" : "status");
+  appStatus.actionButton.textContent = actionLabel;
+  appStatus.actionButton.hidden = !actionLabel || !onAction;
+  appStatus.element.hidden = false;
+
+  if (!persistent) statusTimer = window.setTimeout(hideAppStatus, 7000);
+}
+
+function hideAppStatus() {
+  window.clearTimeout(statusTimer);
+  statusAction = null;
+  appStatus.element.hidden = true;
+}
+
+function showPersistenceError(error) {
+  const message =
+    error?.message ||
+    "No pudimos guardar los cambios. Tus datos siguen visibles en esta sesion, pero necesitan un respaldo.";
+  if (document.body.classList.contains("intro-active")) {
+    pendingStartupNotice = { message, tone: "error" };
+    return;
+  }
+  showAppStatus(message, { tone: "error", persistent: true });
+}
+
+function createRecoveryPoint(reason) {
+  try {
+    repository.createRecoveryPoint(state, reason);
+    restoreDataButton.hidden = false;
+    return true;
+  } catch (error) {
+    showPersistenceError(error);
+    return false;
+  }
+}
+
+function createRestoreDataButton() {
+  const button = document.createElement("button");
+  button.className = "secondary-button";
+  button.type = "button";
+  button.textContent = "Recuperar ultimo cambio";
+  button.hidden = true;
+  button.addEventListener("click", () => {
+    if (!window.confirm("Recuperar la copia anterior al ultimo reinicio o importacion?")) return;
+    restoreLastRecovery("Recuperamos la ultima copia automatica disponible.");
+  });
+  backupActions.append(button);
+  return button;
+}
+
+function syncRecoveryAvailability() {
+  try {
+    const recovery = repository.getRecoveryInfo();
+    restoreDataButton.hidden = !recovery;
+    if (recovery) {
+      backupStatus.textContent = "Hay una copia automatica disponible para recuperar.";
+    }
+  } catch (error) {
+    showPersistenceError(error);
+  }
+}
+
+function restoreLastRecovery(successMessage) {
+  try {
+    state = repository.restoreRecoveryPoint();
+    selectedHistoryDate = currentDayKey;
+    render();
+    showAppStatus(successMessage, { tone: "success" });
+  } catch (error) {
+    showPersistenceError(error);
+  }
 }
 
 function getDay() {
@@ -233,7 +387,7 @@ function renderHabits(day) {
     state.habits.forEach((habit) => {
       const scheduledToday = day.plan.habits.some((planned) => planned.id === habit.id);
       const done = scheduledToday && Boolean(day.habitsDone[habit.id]);
-      const streak = getHabitStreak(habit.id);
+      const streak = getHabitStreak(state, habit.id, currentDayKey);
       habitList.append(
         itemElement({
           title: habit.name,
@@ -255,7 +409,7 @@ function renderHabits(day) {
 
   day.plan.habits.forEach((habit) => {
     const done = Boolean(day.habitsDone[habit.id]);
-    const streak = getHabitStreak(habit.id);
+    const streak = getHabitStreak(state, habit.id, currentDayKey);
     todayChecklist.append(
       itemElement({
         title: habit.name,
@@ -385,23 +539,12 @@ function renderHistory() {
 }
 
 function renderProgressSummary() {
-  const lastSevenKeys = getRecentDateKeys(7);
-  const existingDays = lastSevenKeys.map((key) => state.days[key]).filter(Boolean);
-  const scores = existingDays.map((day) => getDayStats(day).score);
-  const totalWater = existingDays.reduce((sum, day) => sum + (day.water || 0), 0);
-  const totalTraining = existingDays.reduce(
-    (sum, day) => sum + getDayStats(day).completedRoutines,
-    0,
-  );
-  const averageScore = scores.length
-    ? Math.round(scores.reduce((sum, score) => sum + score, 0) / scores.length)
-    : 0;
-  const averageWater = existingDays.length ? Math.round(totalWater / existingDays.length) : 0;
+  const { averageScore, averageWater, totalTraining } = getWeeklySummary(state);
 
   weeklyScoreSummary.textContent = `${averageScore}%`;
   weeklyWaterSummary.textContent = `${averageWater} ml`;
   weeklyTrainingSummary.textContent = totalTraining;
-  bestStreakSummary.textContent = getPerfectDayStreak();
+  bestStreakSummary.textContent = getPerfectDayStreak(state, currentDayKey);
 }
 
 function renderMonthlyCalendar() {
@@ -456,26 +599,21 @@ function renderMonthlyCalendar() {
 
 function renderWeeklyGoals() {
   weeklyGoalList.innerHTML = "";
+  const {
+    completedHabits,
+    habitTarget,
+    waterDays,
+    dayTarget,
+    trainingCount,
+    trainingTarget,
+    foodDays,
+  } = getWeeklyGoals(state);
 
-  const lastSevenKeys = getRecentDateKeys(7);
-  const recentDays = lastSevenKeys.map((key) => state.days[key]).filter(Boolean);
-  const habitTarget = recentDays.reduce((sum, day) => sum + day.plan.habits.length, 0);
-  const completedHabits = recentDays.reduce((sum, day) => {
-    return sum + day.plan.habits.filter((habit) => day.habitsDone[habit.id]).length;
-  }, 0);
-  const waterDays = recentDays.filter((day) => (day.water || 0) >= day.plan.waterGoal).length;
-  const trainingTarget = recentDays.reduce((sum, day) => sum + day.plan.routines.length, 0);
-  const trainingCount = recentDays.reduce((sum, day) => {
-    return sum + day.plan.routines.filter((routine) => day.routinesDone[routine.id]).length;
-  }, 0);
-  const foodDays = lastSevenKeys.filter((key) => (state.days[key]?.meals || []).length > 0).length;
-
-  const recordedDayTarget = Math.max(recentDays.length, 1);
   weeklyGoalList.append(
     goalElement("Habitos", completedHabits, habitTarget, "realizaciones programadas"),
-    goalElement("Agua", waterDays, recordedDayTarget, "dias llegando a tu meta"),
+    goalElement("Agua", waterDays, dayTarget, "dias llegando a tu meta"),
     goalElement("Entreno", trainingCount, trainingTarget, "rutinas programadas"),
-    goalElement("Alimentacion", foodDays, recordedDayTarget, "dias con comidas registradas"),
+    goalElement("Alimentacion", foodDays, dayTarget, "dias con comidas registradas"),
   );
 }
 
@@ -494,51 +632,6 @@ function goalElement(label, value, target, meta) {
     <p>${meta}</p>
   `;
   return card;
-}
-
-function getHabitStreak(habitId) {
-  let streak = 0;
-  const date = new Date();
-  let firstScheduledDay = true;
-  const earliestDayKey = Object.keys(state.days).sort()[0] || currentDayKey;
-
-  while (true) {
-    const key = getDateKeyFromDate(date);
-    if (key < earliestDayKey) break;
-    const day = state.days[key];
-    const scheduled = day?.plan?.habits.some((habit) => habit.id === habitId);
-    if (scheduled) {
-      if (day.habitsDone[habitId]) {
-        streak += 1;
-      } else if (firstScheduledDay && key === currentDayKey) {
-        // Hoy todavia puede estar pendiente sin cortar la racha previa.
-      } else {
-        break;
-      }
-      firstScheduledDay = false;
-    }
-    date.setDate(date.getDate() - 1);
-  }
-
-  return streak;
-}
-
-function getPerfectDayStreak() {
-  let streak = 0;
-  const date = new Date();
-
-  const today = state.days[currentDayKey];
-  if (!today || getDayStats(today).score < 100) date.setDate(date.getDate() - 1);
-
-  while (true) {
-    const key = getDateKeyFromDate(date);
-    const day = state.days[key];
-    if (!day || getDayStats(day).score < 100) break;
-    streak += 1;
-    date.setDate(date.getDate() - 1);
-  }
-
-  return streak;
 }
 
 function formatDateKey(key) {
@@ -788,7 +881,19 @@ trainingCancelButton.addEventListener("click", resetTrainingForm);
 
 startAppButton.addEventListener("click", () => {
   introScreen.classList.add("hidden");
+  introScreen.setAttribute("aria-hidden", "true");
   document.body.classList.remove("intro-active");
+  appShell.inert = false;
+  appShell.removeAttribute("aria-hidden");
+  sectionTitle.tabIndex = -1;
+  sectionTitle.focus();
+  if (pendingStartupNotice) {
+    showAppStatus(pendingStartupNotice.message, {
+      tone: pendingStartupNotice.tone,
+      persistent: true,
+    });
+    pendingStartupNotice = null;
+  }
   window.setTimeout(() => introScreen.remove(), 380);
 });
 
@@ -876,8 +981,9 @@ waterGoalForm.addEventListener("submit", (event) => {
 });
 
 resetTodayButton.addEventListener("click", () => {
-  if (!window.confirm("Reiniciar todo lo registrado hoy? Esta accion no se puede deshacer."))
-    return;
+  if (!window.confirm("Reiniciar todo lo registrado hoy? Vas a poder deshacerlo.")) return;
+  if (!createRecoveryPoint("reset-today")) return;
+
   state.days[currentDayKey] = normalizeDay(
     {
       habitsDone: {},
@@ -890,6 +996,11 @@ resetTodayButton.addEventListener("click", () => {
     currentDayKey,
   );
   render();
+  showAppStatus("El dia fue reiniciado.", {
+    tone: "success",
+    actionLabel: "Deshacer",
+    onAction: () => restoreLastRecovery("Recuperamos todos los datos del dia."),
+  });
 });
 
 exportDataButton.addEventListener("click", () => {
@@ -910,12 +1021,25 @@ importDataInput.addEventListener("change", async () => {
 
   try {
     const text = await file.text();
-    state = repository.import(text);
+    const importedState = repository.validateImport(text);
+    if (!window.confirm("Importar este respaldo reemplazara los datos actuales. Continuar?")) {
+      backupStatus.textContent = "Importacion cancelada. Tus datos no cambiaron.";
+      return;
+    }
+    if (!createRecoveryPoint("import-backup")) return;
+
+    state = repository.save(importedState);
     selectedHistoryDate = currentDayKey;
     render();
     backupStatus.textContent = "Respaldo importado correctamente.";
-  } catch {
-    backupStatus.textContent = "No se pudo importar ese archivo.";
+    showAppStatus("El respaldo fue importado.", {
+      tone: "success",
+      actionLabel: "Deshacer",
+      onAction: () => restoreLastRecovery("Recuperamos los datos anteriores a la importacion."),
+    });
+  } catch (error) {
+    backupStatus.textContent = error?.message || "No se pudo importar ese archivo.";
+    if (error?.code?.startsWith("storage-")) showPersistenceError(error);
   } finally {
     importDataInput.value = "";
   }
@@ -924,6 +1048,19 @@ importDataInput.addEventListener("change", async () => {
 syncHabitDayPicker(true);
 setActiveTab(activeTab);
 render();
+syncRecoveryAvailability();
+const repositoryNotice = repository.consumeNotice();
+if (startupPersistenceError) {
+  pendingStartupNotice = {
+    message: startupPersistenceError.message,
+    tone: "error",
+  };
+} else if (repositoryNotice && !pendingStartupNotice) {
+  pendingStartupNotice = {
+    message: repositoryNotice.message,
+    tone: "warning",
+  };
+}
 watchForNewDay();
 
 let deferredInstallPrompt = null;
