@@ -16,6 +16,10 @@ export class SupabaseAuthService {
     return () => data.subscription.unsubscribe();
   }
 
+  getDataClient() {
+    return this.client;
+  }
+
   async signIn({ email, password }) {
     const { data, error } = await this.client.auth.signInWithPassword({ email, password });
     if (error) throw error;

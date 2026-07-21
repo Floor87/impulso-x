@@ -38,10 +38,12 @@ derivada del `user.id` autenticado. Solo la primera cuenta que ingresa puede
 reclamar los datos locales previos; otra cuenta no puede leerlos. Ninguna funcion
 accede directamente a `localStorage`.
 
-Una futura implementacion `SupabaseDataRepository` podra usar el mismo contrato
-para sincronizar dispositivos. Hasta entonces, Supabase autentica la identidad,
-pero la nube no sustituye el almacenamiento local ni debe provocar perdida de
-datos.
+`SupabaseDataRepository` usa el mismo contrato para sincronizar dispositivos.
+Mantiene una copia local por usuario para apertura inmediata y trabajo ante una
+falla de red; al iniciar sesion carga la copia remota y cada cambio se agrupa
+antes de actualizar `public.user_states`. Si una sincronizacion falla, conserva
+el cambio local, lo marca como pendiente y lo envia antes de aceptar una copia
+remota cuando recupera conexion.
 
 ## Autenticacion
 

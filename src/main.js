@@ -4,6 +4,7 @@ import { createAuthService } from "./auth/create-auth-service.js";
 import { createAuthUi } from "./auth/auth-ui.js";
 import { getUserLabel } from "./auth/supabase-auth-service.js";
 import { LocalDataRepository } from "./data/local-data-repository.js";
+import { SupabaseDataRepository } from "./data/supabase-data-repository.js";
 import { createDefaultState, createId, normalizeDay, normalizeState } from "./data/state.js";
 import { getDateKeyFromDate, getLocalDateKey } from "./domain/date.js";
 import {
@@ -29,6 +30,9 @@ const preferenceRepository = new LocalDataRepository();
 let repository = null;
 let authService = null;
 let currentUserId = null;
+let enteringUserId = null;
+let enteringUserPromise = null;
+let authGeneration = 0;
 let currentDayKey = getLocalDateKey();
 let startupPersistenceError = null;
 let state = null;
@@ -256,14 +260,47 @@ async function enterAuthenticatedApp(session) {
   const user = session?.user;
   if (!user?.id || (currentUserId === user.id && state)) return;
 
-  currentUserId = user.id;
-  repository = new LocalDataRepository(globalThis.localStorage, { userId: user.id });
-  try {
-    state = repository.load();
-  } catch (error) {
-    startupPersistenceError = error;
-    state = normalizeState(createDefaultState());
+  if (enteringUserId === user.id && enteringUserPromise) {
+    await enteringUserPromise;
+    return;
   }
+
+  enteringUserId = user.id;
+  const entryGeneration = ++authGeneration;
+  enteringUserPromise = initializeAuthenticatedApp(user, entryGeneration);
+  try {
+    await enteringUserPromise;
+  } finally {
+    if (enteringUserId === user.id) {
+      enteringUserId = null;
+      enteringUserPromise = null;
+    }
+  }
+}
+
+async function initializeAuthenticatedApp(user, entryGeneration) {
+  const dataClient = authService.getDataClient?.();
+  const userRepository = dataClient
+    ? new SupabaseDataRepository(dataClient, {
+        storage: globalThis.localStorage,
+        userId: user.id,
+        onSyncError: showPersistenceError,
+      })
+    : new LocalDataRepository(globalThis.localStorage, { userId: user.id });
+  let userState;
+  let persistenceError = null;
+  try {
+    userState = await userRepository.load();
+  } catch (error) {
+    persistenceError = error;
+    userState = normalizeState(createDefaultState());
+  }
+
+  if (entryGeneration !== authGeneration) return;
+
+  currentUserId = user.id;
+  repository = userRepository;
+  state = userState;
 
   currentDayKey = getLocalDateKey();
   selectedHistoryDate = currentDayKey;
@@ -272,9 +309,8 @@ async function enterAuthenticatedApp(session) {
   syncRecoveryAvailability();
 
   const repositoryNotice = repository.consumeNotice();
-  if (startupPersistenceError) {
-    pendingStartupNotice = { message: startupPersistenceError.message, tone: "error" };
-    startupPersistenceError = null;
+  if (persistenceError) {
+    pendingStartupNotice = { message: persistenceError.message, tone: "error" };
   } else if (repositoryNotice) {
     pendingStartupNotice = { message: repositoryNotice.message, tone: "warning" };
   }
@@ -299,7 +335,10 @@ function unlockApp() {
 }
 
 function lockApp({ preserveMode = false } = {}) {
+  authGeneration += 1;
   currentUserId = null;
+  enteringUserId = null;
+  enteringUserPromise = null;
   state = null;
   repository = null;
   hideAppStatus();
@@ -1029,6 +1068,7 @@ trainingCancelButton.addEventListener("click", resetTrainingForm);
 signOutButton.addEventListener("click", async () => {
   signOutButton.disabled = true;
   try {
+    await repository?.flush?.();
     await authService.signOut();
     lockApp();
   } catch {
