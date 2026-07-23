@@ -60,6 +60,33 @@ describe("state migrations and repository", () => {
     expect(state.habits[0].time).toBe("08:00");
     expect(state.waterGoal).toBe(2500);
     expect(state.days["2026-07-17"].plan.waterGoal).toBe(2000);
+    expect(state.days["2026-07-17"].tasks).toEqual([]);
+    expect(state.profile).toEqual({ displayName: "", avatarDataUrl: "" });
+  });
+
+  it("preserves a personalized profile and normalizes planned tasks", () => {
+    const state = normalizeState({
+      ...validState(),
+      profile: {
+        displayName: "  Flor Inocencio  ",
+        avatarDataUrl: "data:image/webp;base64,AAAA",
+      },
+      days: {
+        "2026-07-17": {
+          ...validState().days["2026-07-17"],
+          tasks: [
+            { id: "t1", title: "  Preparar entrenamiento  ", time: "8 pm", done: true },
+            { id: "t2", title: "", time: "", done: false },
+          ],
+        },
+      },
+    });
+
+    expect(state.profile.displayName).toBe("Flor Inocencio");
+    expect(state.profile.avatarDataUrl).toBe("data:image/webp;base64,AAAA");
+    expect(state.days["2026-07-17"].tasks).toEqual([
+      { id: "t1", title: "Preparar entrenamiento", time: "20:00", done: true },
+    ]);
   });
 
   it("rejects incomplete or invalid backups", () => {

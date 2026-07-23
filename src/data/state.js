@@ -1,7 +1,7 @@
 import { isValidDateKey } from "../domain/date.js";
 import { createDayPlan, normalizeHabitDays, normalizeTime } from "../domain/schedule.js";
 
-export const STATE_VERSION = 2;
+export const STATE_VERSION = 3;
 
 export function createId() {
   if (globalThis.crypto && typeof globalThis.crypto.randomUUID === "function") {
@@ -35,6 +35,10 @@ export function createDefaultState() {
         exercises: "Sentadillas 4x12\nHip thrust 4x10\nPeso muerto 3x10",
       },
     ],
+    profile: {
+      displayName: "",
+      avatarDataUrl: "",
+    },
     days: {},
     waterGoal: 2000,
   };
@@ -62,6 +66,7 @@ export function normalizeState(rawState, strict = false) {
     routines: normalizeRoutines(
       Array.isArray(rawState.routines) ? rawState.routines : defaults.routines,
     ),
+    profile: normalizeProfile(rawState.profile),
     days: {},
     waterGoal: normalizePositiveNumber(rawState.waterGoal, defaults.waterGoal),
   };
@@ -119,8 +124,40 @@ export function normalizeDay(rawDay, currentState, key, strict = false) {
     meals: normalizeMeals(source.meals),
     water: normalizeNonNegativeNumber(source.water, 0),
     note: String(source.note || "").slice(0, 5000),
+    tasks: normalizeTasks(source.tasks),
     plan: normalizeDayPlan(source.plan, currentState, key),
   };
+}
+
+export function normalizeProfile(profile) {
+  const source = profile && typeof profile === "object" && !Array.isArray(profile) ? profile : {};
+  const avatarDataUrl = String(source.avatarDataUrl || "");
+  return {
+    displayName: String(source.displayName || "")
+      .trim()
+      .slice(0, 80),
+    avatarDataUrl:
+      /^data:image\/(?:png|jpe?g|webp);base64,/i.test(avatarDataUrl) &&
+      avatarDataUrl.length <= 220_000
+        ? avatarDataUrl
+        : "",
+  };
+}
+
+export function normalizeTasks(tasks) {
+  if (!Array.isArray(tasks)) return [];
+  return tasks
+    .filter((task) => task && typeof task === "object")
+    .map((task) => ({
+      id: String(task.id || createId()),
+      title: String(task.title || "")
+        .trim()
+        .slice(0, 120),
+      time: normalizeTime(String(task.time || "")),
+      done: Boolean(task.done),
+    }))
+    .filter((task) => task.title)
+    .slice(0, 300);
 }
 
 function normalizeDoneMap(value) {
