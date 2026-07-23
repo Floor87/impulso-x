@@ -200,6 +200,20 @@ test.describe("authenticated experience", () => {
     await expect(page.locator("#profileAvatarImage")).toBeVisible();
   });
 
+  test("explains how to recover from a photo that cannot be decoded", async ({ page }) => {
+    await page.locator("#profileButton").click();
+    await page.locator("#profilePhotoInput").setInputFiles({
+      name: "foto-danada.jpg",
+      mimeType: "image/jpeg",
+      buffer: Buffer.from("not-a-real-photo"),
+    });
+
+    await expect(page.locator("#profileStatus")).toContainText(
+      'No pudimos abrir "foto-danada.jpg"',
+    );
+    await expect(page.locator("#profilePhotoInput")).toBeEnabled();
+  });
+
   test("isolates corrupt local data and explains the recovery", async ({ page }) => {
     const corruptKey = await page.evaluate(() =>
       Object.keys(globalThis.localStorage).find((key) => key.startsWith("impulsox-state:")),

@@ -30,6 +30,7 @@
     "vitest": "4.1.10"
   },
   "dependencies": {
-    "@supabase/supabase-js": "2.110.7"
+    "@supabase/supabase-js": "2.110.7",
+    "heic-to": "1.5.2"
   }
 }

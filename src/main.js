@@ -45,6 +45,19 @@ let editingRoutineId = null;
 let editingPlannerTaskId = null;
 let plannerMode = "today";
 let pendingProfileAvatar = "";
+let heicModulePromise = null;
+
+const profilePhotoTypes = new Set([
+  "image/png",
+  "image/jpeg",
+  "image/jpg",
+  "image/webp",
+  "image/heic",
+  "image/heif",
+  "image/heic-sequence",
+  "image/heif-sequence",
+]);
+const profilePhotoExtensionPattern = /\.(?:png|jpe?g|webp|heic|heif)$/i;
 
 const weekdayLabels = {
   1: "Lun",
@@ -653,25 +666,38 @@ function getInitials(name) {
 }
 
 async function optimizeProfilePhoto(file) {
-  if (!["image/png", "image/jpeg", "image/webp"].includes(file.type)) {
-    throw new Error("Elegí una imagen PNG, JPG o WebP.");
+  const hasSupportedExtension = profilePhotoExtensionPattern.test(file.name);
+  if ((!file.type || !profilePhotoTypes.has(file.type.toLowerCase())) && !hasSupportedExtension) {
+    throw new Error("Elegí una imagen JPG, PNG, WebP, HEIC o HEIF.");
   }
   if (file.size > 8 * 1024 * 1024) {
     throw new Error("La foto debe pesar menos de 8 MB.");
   }
 
-  const imageUrl = URL.createObjectURL(file);
+  let decodedImage;
   try {
-    const image = await loadImage(imageUrl);
+    decodedImage = await decodeProfilePhoto(file);
     const canvas = document.createElement("canvas");
     const size = 256;
     canvas.width = size;
     canvas.height = size;
     const context = canvas.getContext("2d");
-    const sourceSize = Math.min(image.naturalWidth, image.naturalHeight);
-    const sourceX = (image.naturalWidth - sourceSize) / 2;
-    const sourceY = (image.naturalHeight - sourceSize) / 2;
-    context.drawImage(image, sourceX, sourceY, sourceSize, sourceSize, 0, 0, size, size);
+    if (!context) throw new Error("Este navegador no pudo preparar la foto.");
+
+    const sourceSize = Math.min(decodedImage.width, decodedImage.height);
+    const sourceX = (decodedImage.width - sourceSize) / 2;
+    const sourceY = (decodedImage.height - sourceSize) / 2;
+    context.drawImage(
+      decodedImage.source,
+      sourceX,
+      sourceY,
+      sourceSize,
+      sourceSize,
+      0,
+      0,
+      size,
+      size,
+    );
 
     let dataUrl = canvas.toDataURL("image/webp", 0.82);
     if (dataUrl.length > 220_000) dataUrl = canvas.toDataURL("image/jpeg", 0.72);
@@ -680,8 +706,84 @@ async function optimizeProfilePhoto(file) {
     }
     return dataUrl;
   } finally {
-    URL.revokeObjectURL(imageUrl);
+    decodedImage?.close();
   }
+}
+
+async function decodeProfilePhoto(file) {
+  try {
+    return await decodeImageBlob(file);
+  } catch {
+    let isHeic = false;
+    try {
+      const heicModule = await loadHeicModule();
+      isHeic = await heicModule.isHeic(file);
+      if (isHeic) {
+        const jpegBlob = await heicModule.heicTo({
+          blob: file,
+          type: "image/jpeg",
+          quality: 0.9,
+        });
+        return await decodeImageBlob(jpegBlob);
+      }
+    } catch {
+      if (isHeic) {
+        throw new Error(
+          "La foto HEIC no pudo convertirse. Probá exportarla como JPG o elegir otra foto.",
+        );
+      }
+    }
+
+    throw new Error(
+      `No pudimos abrir "${file.name}". Probá con otra foto JPG, PNG, WebP, HEIC o HEIF.`,
+    );
+  }
+}
+
+async function decodeImageBlob(blob) {
+  if (typeof window.createImageBitmap === "function") {
+    try {
+      const bitmap = await window.createImageBitmap(blob, { imageOrientation: "from-image" });
+      return {
+        source: bitmap,
+        width: bitmap.width,
+        height: bitmap.height,
+        close: () => bitmap.close(),
+      };
+    } catch {
+      // Some mobile browsers reject valid camera photos here; the DOM decoders are fallbacks.
+    }
+  }
+
+  const objectUrl = URL.createObjectURL(blob);
+  try {
+    const image = await loadImage(objectUrl);
+    return decodedDomImage(image);
+  } catch {
+    const dataUrl = await readBlobAsDataUrl(blob);
+    const image = await loadImage(dataUrl);
+    return decodedDomImage(image);
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
+
+function decodedDomImage(image) {
+  return {
+    source: image,
+    width: image.naturalWidth,
+    height: image.naturalHeight,
+    close: () => {},
+  };
+}
+
+function readBlobAsDataUrl(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new window.FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error("No pudimos leer el archivo de la foto."));
+    reader.readAsDataURL(blob);
+  });
 }
 
 function loadImage(source) {
@@ -691,6 +793,11 @@ function loadImage(source) {
     image.onerror = () => reject(new Error("No pudimos leer esa imagen."));
     image.src = source;
   });
+}
+
+function loadHeicModule() {
+  heicModulePromise ||= import("heic-to/csp");
+  return heicModulePromise;
 }
 
 function getPlannerDateKey() {
