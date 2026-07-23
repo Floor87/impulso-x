@@ -6,7 +6,7 @@ import { getUserLabel } from "./auth/supabase-auth-service.js";
 import { LocalDataRepository } from "./data/local-data-repository.js";
 import { SupabaseDataRepository } from "./data/supabase-data-repository.js";
 import { createDefaultState, createId, normalizeDay, normalizeState } from "./data/state.js";
-import { getDateKeyFromDate, getLocalDateKey } from "./domain/date.js";
+import { getAdjacentDateKey, getDateKeyFromDate, getLocalDateKey } from "./domain/date.js";
 import {
   getCalendarLevel,
   getDayStats,
@@ -18,6 +18,7 @@ import {
 import { createDayPlan, normalizeHabitDays, normalizeTime } from "./domain/schedule.js";
 import { addMeal, removeMeal } from "./features/food.js";
 import { removeHabit, toggleHabit as toggleHabitState, upsertHabit } from "./features/habits.js";
+import { removePlannedTask, togglePlannedTask, upsertPlannedTask } from "./features/planner.js";
 import {
   removeRoutine,
   toggleRoutine as toggleRoutineState,
@@ -36,10 +37,30 @@ let authGeneration = 0;
 let currentDayKey = getLocalDateKey();
 let startupPersistenceError = null;
 let state = null;
+let authenticatedUserLabel = "Usuario";
 
 let activeTab = "today";
 let editingHabitId = null;
 let editingRoutineId = null;
+let editingPlannerTaskId = null;
+let plannerMode = "today";
+let pendingProfileAvatar = "";
+let pendingProfilePhotoSource = null;
+let pendingProfileCrop = createDefaultProfileCrop();
+let profileCropDrag = null;
+let heicModulePromise = null;
+
+const profilePhotoTypes = new Set([
+  "image/png",
+  "image/jpeg",
+  "image/jpg",
+  "image/webp",
+  "image/heic",
+  "image/heif",
+  "image/heic-sequence",
+  "image/heif-sequence",
+]);
+const profilePhotoExtensionPattern = /\.(?:png|jpe?g|webp|heic|heif)$/i;
 
 const weekdayLabels = {
   1: "Lun",
@@ -68,10 +89,25 @@ const themeToggle = document.querySelector("#themeToggle");
 const themeLabel = document.querySelector("#themeLabel");
 const sectionTitle = document.querySelector("#sectionTitle");
 const currentDate = document.querySelector("#currentDate");
-const resetTodayButton = document.querySelector("#resetTodayButton");
 const installButton = document.querySelector("#installButton");
 const appShell = document.querySelector(".app-shell");
+const profileButton = document.querySelector("#profileButton");
 const accountName = document.querySelector("#accountName");
+const profileInitials = document.querySelector("#profileInitials");
+const profileAvatarImage = document.querySelector("#profileAvatarImage");
+const profileDialog = document.querySelector("#profileDialog");
+const profileForm = document.querySelector("#profileForm");
+const profileCloseButton = document.querySelector("#profileCloseButton");
+const profilePreviewImage = document.querySelector("#profilePreviewImage");
+const profilePreviewInitials = document.querySelector("#profilePreviewInitials");
+const profileCropViewport = document.querySelector("#profileCropViewport");
+const profileCropCanvas = document.querySelector("#profileCropCanvas");
+const profileCropControls = document.querySelector("#profileCropControls");
+const profileCropZoom = document.querySelector("#profileCropZoom");
+const profilePhotoInput = document.querySelector("#profilePhotoInput");
+const profileRemovePhoto = document.querySelector("#profileRemovePhoto");
+const profileDisplayName = document.querySelector("#profileDisplayName");
+const profileStatus = document.querySelector("#profileStatus");
 const signOutButton = document.querySelector("#signOutButton");
 
 const habitForm = document.querySelector("#habitForm");
@@ -86,6 +122,17 @@ const habitSubmitButton = document.querySelector("#habitSubmitButton");
 const habitCancelButton = document.querySelector("#habitCancelButton");
 const habitList = document.querySelector("#habitList");
 const todayChecklist = document.querySelector("#todayChecklist");
+const plannerDateLabel = document.querySelector("#plannerDateLabel");
+const plannerSummary = document.querySelector("#plannerSummary");
+const plannerTodayButton = document.querySelector("#plannerTodayButton");
+const plannerTomorrowButton = document.querySelector("#plannerTomorrowButton");
+const plannerForm = document.querySelector("#plannerForm");
+const plannerTaskTitle = document.querySelector("#plannerTaskTitle");
+const plannerTaskTime = document.querySelector("#plannerTaskTime");
+const plannerSubmitButton = document.querySelector("#plannerSubmitButton");
+const plannerCancelButton = document.querySelector("#plannerCancelButton");
+const plannerStatus = document.querySelector("#plannerStatus");
+const plannerList = document.querySelector("#plannerList");
 
 const trainingForm = document.querySelector("#trainingForm");
 const trainingName = document.querySelector("#trainingName");
@@ -301,10 +348,12 @@ async function initializeAuthenticatedApp(user, entryGeneration) {
   currentUserId = user.id;
   repository = userRepository;
   state = userState;
+  authenticatedUserLabel = getUserLabel(user);
+  if (!state.profile.displayName) state.profile.displayName = authenticatedUserLabel;
 
   currentDayKey = getLocalDateKey();
   selectedHistoryDate = currentDayKey;
-  accountName.textContent = getUserLabel(user);
+  plannerMode = "today";
   render();
   syncRecoveryAvailability();
 
@@ -341,6 +390,10 @@ function lockApp({ preserveMode = false } = {}) {
   enteringUserPromise = null;
   state = null;
   repository = null;
+  authenticatedUserLabel = "Usuario";
+  plannerMode = "today";
+  editingPlannerTaskId = null;
+  pendingProfileAvatar = "";
   hideAppStatus();
   appShell.inert = true;
   appShell.setAttribute("aria-hidden", "true");
@@ -348,6 +401,8 @@ function lockApp({ preserveMode = false } = {}) {
   introScreen.classList.remove("hidden");
   introScreen.removeAttribute("aria-hidden");
   accountName.textContent = "Usuario";
+  updateAvatarElements("", "Usuario");
+  if (profileDialog.open) profileDialog.close();
   if (!preserveMode) authUi.showWelcome();
 }
 
@@ -465,7 +520,7 @@ function createRestoreDataButton() {
   button.textContent = "Recuperar ultimo cambio";
   button.hidden = true;
   button.addEventListener("click", () => {
-    if (!window.confirm("Recuperar la copia anterior al ultimo reinicio o importacion?")) return;
+    if (!window.confirm("Recuperar la copia anterior a la ultima importacion?")) return;
     restoreLastRecovery("Recuperamos la ultima copia automatica disponible.");
   });
   backupActions.append(button);
@@ -495,22 +550,27 @@ function restoreLastRecovery(successMessage) {
   }
 }
 
-function getDay() {
-  if (!state.days[currentDayKey]) {
-    state.days[currentDayKey] = normalizeDay(
+function getDayByKey(key, create = true) {
+  if (!state.days[key] && create) {
+    state.days[key] = normalizeDay(
       {
         habitsDone: {},
         routinesDone: {},
         meals: [],
         water: 0,
         note: "",
+        tasks: [],
       },
       state,
-      currentDayKey,
+      key,
     );
   }
 
-  return state.days[currentDayKey];
+  return state.days[key] || null;
+}
+
+function getDay() {
+  return getDayByKey(currentDayKey);
 }
 
 function syncCurrentDayPlan(day) {
@@ -537,6 +597,8 @@ function render() {
   dailyNote.value = day.note;
   waterGoalInput.value = state.waterGoal;
 
+  renderProfile();
+  renderPlanner();
   renderHabits(day);
   renderTraining(day);
   renderMeals(day);
@@ -547,6 +609,388 @@ function render() {
   renderMonthlyCalendar();
   renderWeeklyGoals();
   saveState();
+}
+
+function renderProfile() {
+  const name = state.profile.displayName || authenticatedUserLabel;
+  accountName.textContent = name;
+  profileButton.ariaLabel = `Abrir perfil de ${name}`;
+  updateAvatarElement(profileAvatarImage, profileInitials, state.profile.avatarDataUrl, name);
+}
+
+function openProfileDialog() {
+  releasePendingProfilePhotoSource();
+  resetProfileCrop();
+  pendingProfileAvatar = state.profile.avatarDataUrl;
+  profileDisplayName.value = state.profile.displayName || authenticatedUserLabel;
+  profilePhotoInput.value = "";
+  setProfileStatus("");
+  renderProfilePreview();
+  profileDialog.showModal();
+  profileDisplayName.focus();
+}
+
+function closeProfileDialog() {
+  releasePendingProfilePhotoSource();
+  resetProfileCrop();
+  pendingProfileAvatar = state?.profile.avatarDataUrl || "";
+  profilePhotoInput.value = "";
+  setProfileStatus("");
+  if (profileDialog.open) profileDialog.close();
+}
+
+function renderProfilePreview() {
+  const name = profileDisplayName.value.trim() || authenticatedUserLabel;
+  const isAdjustingPhoto = Boolean(pendingProfilePhotoSource);
+
+  profileCropCanvas.hidden = !isAdjustingPhoto;
+  profileCropControls.hidden = !isAdjustingPhoto;
+  profileCropViewport.classList.toggle("is-adjustable", isAdjustingPhoto);
+  if (isAdjustingPhoto) {
+    profileCropViewport.tabIndex = 0;
+    profilePreviewImage.hidden = true;
+    profilePreviewInitials.hidden = true;
+    renderProfileCropCanvas();
+  } else {
+    profileCropViewport.removeAttribute("tabindex");
+    updateAvatarElement(profilePreviewImage, profilePreviewInitials, pendingProfileAvatar, name);
+  }
+
+  profileRemovePhoto.hidden = !pendingProfileAvatar && !isAdjustingPhoto;
+}
+
+function updateAvatarElement(image, initialsElement, avatarDataUrl, name) {
+  const hasAvatar = Boolean(avatarDataUrl);
+  image.hidden = !hasAvatar;
+  initialsElement.hidden = hasAvatar;
+  if (hasAvatar) {
+    image.src = avatarDataUrl;
+  } else {
+    image.removeAttribute("src");
+    initialsElement.textContent = getInitials(name);
+  }
+}
+
+function updateAvatarElements(avatarDataUrl, name) {
+  updateAvatarElement(profileAvatarImage, profileInitials, avatarDataUrl, name);
+  updateAvatarElement(profilePreviewImage, profilePreviewInitials, avatarDataUrl, name);
+}
+
+function getInitials(name) {
+  const words = String(name || "Usuario")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  return (
+    words
+      .slice(0, 2)
+      .map((word) => word[0])
+      .join("")
+      .toUpperCase() || "U"
+  );
+}
+
+function createDefaultProfileCrop() {
+  return { x: 0.5, y: 0.5, zoom: 1 };
+}
+
+function resetProfileCrop() {
+  pendingProfileCrop = createDefaultProfileCrop();
+  profileCropZoom.value = String(pendingProfileCrop.zoom);
+  profileCropDrag = null;
+  profileCropViewport.classList.remove("is-dragging");
+}
+
+function releasePendingProfilePhotoSource() {
+  pendingProfilePhotoSource?.close();
+  pendingProfilePhotoSource = null;
+}
+
+function setProfileStatus(message, tone = "") {
+  profileStatus.textContent = message;
+  if (tone) {
+    profileStatus.dataset.tone = tone;
+  } else {
+    delete profileStatus.dataset.tone;
+  }
+}
+
+async function prepareProfilePhoto(file) {
+  const hasSupportedExtension = profilePhotoExtensionPattern.test(file.name);
+  if ((!file.type || !profilePhotoTypes.has(file.type.toLowerCase())) && !hasSupportedExtension) {
+    throw new Error("Elegí una imagen JPG, PNG, WebP, HEIC o HEIF.");
+  }
+  if (file.size > 8 * 1024 * 1024) {
+    throw new Error("La foto debe pesar menos de 8 MB.");
+  }
+
+  return decodeProfilePhoto(file);
+}
+
+function getProfileCropRectangle() {
+  const { width, height } = pendingProfilePhotoSource;
+  const sourceSize = Math.min(width, height) / pendingProfileCrop.zoom;
+  return {
+    size: sourceSize,
+    x: (width - sourceSize) * pendingProfileCrop.x,
+    y: (height - sourceSize) * pendingProfileCrop.y,
+  };
+}
+
+function renderProfileCropCanvas() {
+  if (!pendingProfilePhotoSource) return;
+  const context = profileCropCanvas.getContext("2d");
+  if (!context) throw new Error("Este navegador no pudo preparar la foto.");
+
+  const crop = getProfileCropRectangle();
+  context.clearRect(0, 0, profileCropCanvas.width, profileCropCanvas.height);
+  context.drawImage(
+    pendingProfilePhotoSource.source,
+    crop.x,
+    crop.y,
+    crop.size,
+    crop.size,
+    0,
+    0,
+    profileCropCanvas.width,
+    profileCropCanvas.height,
+  );
+}
+
+function commitProfileCrop() {
+  if (!pendingProfilePhotoSource) return pendingProfileAvatar;
+  renderProfileCropCanvas();
+
+  let dataUrl = profileCropCanvas.toDataURL("image/webp", 0.82);
+  if (dataUrl.length > 220_000) dataUrl = profileCropCanvas.toDataURL("image/jpeg", 0.72);
+  if (dataUrl.length > 220_000) {
+    throw new Error("No pudimos comprimir la foto. Probá con otra imagen.");
+  }
+  pendingProfileAvatar = dataUrl;
+  return dataUrl;
+}
+
+function clampProfileCrop(value) {
+  return Math.min(1, Math.max(0, value));
+}
+
+function moveProfileCrop(deltaX, deltaY, origin = pendingProfileCrop) {
+  if (!pendingProfilePhotoSource) return;
+  const viewport = profileCropViewport.getBoundingClientRect();
+  const { width, height } = pendingProfilePhotoSource;
+  const cropSize = Math.min(width, height) / pendingProfileCrop.zoom;
+  const sourcePixelsPerScreenPixel = cropSize / viewport.width;
+  const horizontalTravel = width - cropSize;
+  const verticalTravel = height - cropSize;
+
+  pendingProfileCrop.x =
+    horizontalTravel > 0
+      ? clampProfileCrop(origin.x - (deltaX * sourcePixelsPerScreenPixel) / horizontalTravel)
+      : 0.5;
+  pendingProfileCrop.y =
+    verticalTravel > 0
+      ? clampProfileCrop(origin.y - (deltaY * sourcePixelsPerScreenPixel) / verticalTravel)
+      : 0.5;
+  renderProfileCropCanvas();
+}
+
+async function decodeProfilePhoto(file) {
+  try {
+    return await decodeImageBlob(file);
+  } catch {
+    let isHeic = false;
+    try {
+      const heicModule = await loadHeicModule();
+      isHeic = await heicModule.isHeic(file);
+      if (isHeic) {
+        const jpegBlob = await heicModule.heicTo({
+          blob: file,
+          type: "image/jpeg",
+          quality: 0.9,
+        });
+        return await decodeImageBlob(jpegBlob);
+      }
+    } catch {
+      if (isHeic) {
+        throw new Error(
+          "La foto HEIC no pudo convertirse. Probá exportarla como JPG o elegir otra foto.",
+        );
+      }
+    }
+
+    throw new Error(
+      `No pudimos abrir "${file.name}". Probá con otra foto JPG, PNG, WebP, HEIC o HEIF.`,
+    );
+  }
+}
+
+async function decodeImageBlob(blob) {
+  if (typeof window.createImageBitmap === "function") {
+    try {
+      const bitmap = await window.createImageBitmap(blob, { imageOrientation: "from-image" });
+      return {
+        source: bitmap,
+        width: bitmap.width,
+        height: bitmap.height,
+        close: () => bitmap.close(),
+      };
+    } catch {
+      // Some mobile browsers reject valid camera photos here; the DOM decoders are fallbacks.
+    }
+  }
+
+  const objectUrl = URL.createObjectURL(blob);
+  try {
+    const image = await loadImage(objectUrl);
+    return decodedDomImage(image);
+  } catch {
+    const dataUrl = await readBlobAsDataUrl(blob);
+    const image = await loadImage(dataUrl);
+    return decodedDomImage(image);
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
+
+function decodedDomImage(image) {
+  return {
+    source: image,
+    width: image.naturalWidth,
+    height: image.naturalHeight,
+    close: () => {},
+  };
+}
+
+function readBlobAsDataUrl(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new window.FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error("No pudimos leer el archivo de la foto."));
+    reader.readAsDataURL(blob);
+  });
+}
+
+function loadImage(source) {
+  return new Promise((resolve, reject) => {
+    const image = new window.Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error("No pudimos leer esa imagen."));
+    image.src = source;
+  });
+}
+
+function loadHeicModule() {
+  heicModulePromise ||= import("heic-to/csp");
+  return heicModulePromise;
+}
+
+function getPlannerDateKey() {
+  return plannerMode === "tomorrow" ? getAdjacentDateKey(currentDayKey, 1) : currentDayKey;
+}
+
+function renderPlanner() {
+  const plannerKey = getPlannerDateKey();
+  const plannerDay = getDayByKey(plannerKey, false);
+  const tasks = plannerDay?.tasks || [];
+  const completed = tasks.filter((task) => task.done).length;
+  const isToday = plannerMode === "today";
+
+  plannerTodayButton.classList.toggle("active", isToday);
+  plannerTomorrowButton.classList.toggle("active", !isToday);
+  plannerTodayButton.setAttribute("aria-selected", String(isToday));
+  plannerTomorrowButton.setAttribute("aria-selected", String(!isToday));
+  plannerDateLabel.textContent = `${isToday ? "Hoy" : "Mañana"} · ${formatDateKey(plannerKey)}`;
+  plannerSummary.textContent = tasks.length
+    ? `${completed}/${tasks.length} tareas completadas${isToday ? "" : " · listas para mañana"}`
+    : isToday
+      ? "Organizá lo importante y marcá cada tarea cuando la completes."
+      : "Prepará mañana con calma. Las tareas se activarán al comenzar el nuevo día.";
+  plannerList.innerHTML = "";
+
+  if (!tasks.length) {
+    plannerList.append(
+      emptyState(
+        isToday
+          ? "Todavía no agregaste tareas para hoy."
+          : "Todavía no preparaste tareas para mañana.",
+      ),
+    );
+    return;
+  }
+
+  const visibleTasks = isToday ? tasks.filter((task) => !task.done) : tasks;
+  if (!visibleTasks.length) {
+    plannerList.append(emptyState("Completaste todas las tareas de hoy."));
+    return;
+  }
+
+  visibleTasks.forEach((task) => {
+    const status = isToday ? (task.done ? "Completada" : "Pendiente") : "Lista para mañana";
+    plannerList.append(
+      itemElement({
+        title: task.title,
+        meta: [task.time ? `Hora ${task.time}` : "", status].filter(Boolean).join(" · "),
+        done: task.done,
+        onToggle: isToday ? () => togglePlannerTask(task.id) : null,
+        onEdit: () => startEditingPlannerTask(task.id),
+        onDelete: () => deletePlannerTask(task.id),
+        deleteLabel: `Eliminar ${task.title}`,
+      }),
+    );
+  });
+}
+
+function setPlannerMode(mode) {
+  plannerMode = mode === "tomorrow" ? "tomorrow" : "today";
+  resetPlannerForm();
+  renderPlanner();
+}
+
+function startEditingPlannerTask(id) {
+  const task = getDayByKey(getPlannerDateKey(), false)?.tasks.find((item) => item.id === id);
+  if (!task) return;
+  editingPlannerTaskId = id;
+  plannerTaskTitle.value = task.title;
+  plannerTaskTime.value = task.time;
+  plannerSubmitButton.textContent = "Guardar cambios";
+  plannerCancelButton.hidden = false;
+  plannerStatus.textContent = "";
+  plannerTaskTitle.focus();
+}
+
+function resetPlannerForm() {
+  editingPlannerTaskId = null;
+  plannerForm.reset();
+  plannerTaskTime.setCustomValidity("");
+  plannerSubmitButton.textContent = "Agregar tarea";
+  plannerCancelButton.hidden = true;
+  plannerStatus.textContent = "";
+}
+
+function togglePlannerTask(id) {
+  const day = getDay();
+  const task = day.tasks.find((item) => item.id === id);
+  const completed = togglePlannedTask(day, id);
+  render();
+  if (completed && task) {
+    showAppStatus(`Completaste "${task.title}".`, {
+      tone: "success",
+      actionLabel: "Deshacer",
+      onAction: () => {
+        togglePlannedTask(day, id);
+        render();
+      },
+    });
+  }
+}
+
+function deletePlannerTask(id) {
+  const day = getDayByKey(getPlannerDateKey(), false);
+  const task = day?.tasks.find((item) => item.id === id);
+  if (!task || !window.confirm(`Eliminar la tarea "${task.title}"?`)) return;
+  removePlannedTask(day, id);
+  if (editingPlannerTaskId === id) resetPlannerForm();
+  render();
 }
 
 function renderSummary(day) {
@@ -593,14 +1037,19 @@ function renderHabits(day) {
     return;
   }
 
-  day.plan.habits.forEach((habit) => {
-    const done = Boolean(day.habitsDone[habit.id]);
+  const pendingHabits = day.plan.habits.filter((habit) => !day.habitsDone[habit.id]);
+  if (!pendingHabits.length) {
+    todayChecklist.append(emptyState("Completaste todos tus habitos de hoy."));
+    return;
+  }
+
+  pendingHabits.forEach((habit) => {
     const streak = getHabitStreak(state, habit.id, currentDayKey);
     todayChecklist.append(
       itemElement({
         title: habit.name,
         meta: `Habito · ${formatHabitSchedule(habit)} · Racha ${streak}`,
-        done,
+        done: false,
         onToggle: () => toggleHabit(habit.id),
       }),
     );
@@ -668,7 +1117,9 @@ function renderHistory() {
   historyList.innerHTML = "";
   historyDetail.innerHTML = "";
 
-  const dayKeys = Object.keys(state.days).sort((a, b) => b.localeCompare(a));
+  const dayKeys = Object.keys(state.days)
+    .filter((key) => key <= currentDayKey)
+    .sort((a, b) => b.localeCompare(a));
   if (!dayKeys.length) {
     historyList.append(emptyState("Todavia no hay dias guardados."));
     historyDetail.append(emptyState("Cuando completes tu dia, vas a verlo aca."));
@@ -707,16 +1158,31 @@ function renderHistory() {
     statPill("Agua", `${selectedDay.water || 0} ml`),
     statPill("Entreno", selectedStats.completedRoutines),
     statPill("Comidas", selectedDay.meals.length),
+    statPill(
+      "Plan",
+      `${selectedDay.tasks.filter((task) => task.done).length}/${selectedDay.tasks.length}`,
+    ),
   );
 
   const meals = selectedDay.meals.length
     ? selectedDay.meals.map((meal) => `${meal.type}: ${meal.text}`).join(" · ")
     : "Sin comidas registradas.";
+  const completedHabits = selectedDay.plan.habits
+    .filter((habit) => selectedDay.habitsDone[habit.id])
+    .map((habit) => habit.name);
+  const habits = completedHabits.length ? completedHabits.join(" · ") : "Sin habitos realizados.";
+  const tasks = selectedDay.tasks.length
+    ? selectedDay.tasks
+        .map((task) => `${task.done ? "Hecha" : "Pendiente"}: ${task.title}`)
+        .join(" · ")
+    : "Sin tareas planificadas.";
   const note = selectedDay.note || "Sin nota diaria.";
 
   const text = document.createElement("div");
   text.className = "history-notes";
   text.innerHTML = `
+    <p><strong>Habitos realizados:</strong> ${escapeHtml(habits)}</p>
+    <p><strong>Plan:</strong> ${escapeHtml(tasks)}</p>
     <p><strong>Alimentacion:</strong> ${escapeHtml(meals)}</p>
     <p><strong>Nota:</strong> ${escapeHtml(note)}</p>
   `;
@@ -758,7 +1224,7 @@ function renderMonthlyCalendar() {
   for (let dayNumber = 1; dayNumber <= daysInMonth; dayNumber += 1) {
     const date = new Date(year, month, dayNumber);
     const key = getDateKeyFromDate(date);
-    const day = state.days[key];
+    const day = key <= todayKey ? state.days[key] : null;
     const stats = day ? getDayStats(day) : null;
     const button = document.createElement("button");
     const level = getCalendarLevel(stats);
@@ -1005,8 +1471,19 @@ function resetTrainingForm() {
 
 function toggleHabit(id) {
   const day = getDay();
-  toggleHabitState(day, id);
+  const habit = day.plan.habits.find((item) => item.id === id);
+  const completed = toggleHabitState(day, id);
   render();
+  if (completed && habit) {
+    showAppStatus(`Completaste "${habit.name}".`, {
+      tone: "success",
+      actionLabel: "Deshacer",
+      onAction: () => {
+        toggleHabitState(day, id);
+        render();
+      },
+    });
+  }
 }
 
 function deleteHabit(id) {
@@ -1064,6 +1541,125 @@ habitDayInputs.forEach((input) => {
 });
 habitCancelButton.addEventListener("click", resetHabitForm);
 trainingCancelButton.addEventListener("click", resetTrainingForm);
+plannerCancelButton.addEventListener("click", resetPlannerForm);
+
+profileButton.addEventListener("click", openProfileDialog);
+profileCloseButton.addEventListener("click", closeProfileDialog);
+profileDialog.addEventListener("cancel", (event) => {
+  event.preventDefault();
+  closeProfileDialog();
+});
+profileDisplayName.addEventListener("input", renderProfilePreview);
+profilePhotoInput.addEventListener("change", async () => {
+  const file = profilePhotoInput.files[0];
+  if (!file) return;
+
+  profilePhotoInput.disabled = true;
+  setProfileStatus("Preparando foto...");
+  try {
+    const decodedPhoto = await prepareProfilePhoto(file);
+    releasePendingProfilePhotoSource();
+    pendingProfilePhotoSource = decodedPhoto;
+    resetProfileCrop();
+    renderProfilePreview();
+    commitProfileCrop();
+    setProfileStatus("Foto lista para guardar.", "success");
+  } catch (error) {
+    setProfileStatus(error?.message || "No pudimos preparar esa foto.", "error");
+    profilePhotoInput.value = "";
+  } finally {
+    profilePhotoInput.disabled = false;
+  }
+});
+profileRemovePhoto.addEventListener("click", () => {
+  releasePendingProfilePhotoSource();
+  resetProfileCrop();
+  pendingProfileAvatar = "";
+  profilePhotoInput.value = "";
+  setProfileStatus("La foto se quitará al guardar.");
+  renderProfilePreview();
+});
+profileCropZoom.addEventListener("input", () => {
+  pendingProfileCrop.zoom = Number(profileCropZoom.value);
+  renderProfileCropCanvas();
+});
+profileCropZoom.addEventListener("change", () => {
+  commitProfileCrop();
+  setProfileStatus("Encuadre actualizado.", "success");
+});
+profileCropViewport.addEventListener("pointerdown", (event) => {
+  if (!pendingProfilePhotoSource) return;
+  event.preventDefault();
+  profileCropViewport.focus();
+  profileCropViewport.setPointerCapture(event.pointerId);
+  profileCropDrag = {
+    pointerId: event.pointerId,
+    startX: event.clientX,
+    startY: event.clientY,
+    crop: { ...pendingProfileCrop },
+  };
+  profileCropViewport.classList.add("is-dragging");
+});
+profileCropViewport.addEventListener("pointermove", (event) => {
+  if (profileCropDrag?.pointerId !== event.pointerId) return;
+  moveProfileCrop(
+    event.clientX - profileCropDrag.startX,
+    event.clientY - profileCropDrag.startY,
+    profileCropDrag.crop,
+  );
+});
+profileCropViewport.addEventListener("pointerup", (event) => {
+  if (profileCropDrag?.pointerId !== event.pointerId) return;
+  profileCropDrag = null;
+  profileCropViewport.classList.remove("is-dragging");
+  profileCropViewport.releasePointerCapture(event.pointerId);
+  commitProfileCrop();
+  setProfileStatus("Encuadre actualizado.", "success");
+});
+profileCropViewport.addEventListener("pointercancel", () => {
+  profileCropDrag = null;
+  profileCropViewport.classList.remove("is-dragging");
+  commitProfileCrop();
+});
+profileCropViewport.addEventListener("keydown", (event) => {
+  if (!pendingProfilePhotoSource || !event.key.startsWith("Arrow")) return;
+  event.preventDefault();
+  const amount = event.shiftKey ? 18 : 6;
+  const directions = {
+    ArrowLeft: [-amount, 0],
+    ArrowRight: [amount, 0],
+    ArrowUp: [0, -amount],
+    ArrowDown: [0, amount],
+  };
+  const [deltaX, deltaY] = directions[event.key];
+  moveProfileCrop(deltaX, deltaY);
+  commitProfileCrop();
+  setProfileStatus("Encuadre actualizado.", "success");
+});
+profileForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  const displayName = profileDisplayName.value.trim();
+  if (!displayName) {
+    profileDisplayName.setCustomValidity("Ingresá un nombre para tu perfil.");
+    profileDisplayName.reportValidity();
+    return;
+  }
+  profileDisplayName.setCustomValidity("");
+  try {
+    commitProfileCrop();
+  } catch (error) {
+    setProfileStatus(error?.message || "No pudimos guardar esa foto.", "error");
+    return;
+  }
+  state.profile = {
+    displayName,
+    avatarDataUrl: pendingProfileAvatar,
+  };
+  renderProfile();
+  if (!saveState()) return;
+  closeProfileDialog();
+  showAppStatus("Tu perfil quedó actualizado.", { tone: "success" });
+});
 
 signOutButton.addEventListener("click", async () => {
   signOutButton.disabled = true;
@@ -1079,6 +1675,39 @@ signOutButton.addEventListener("click", async () => {
   } finally {
     signOutButton.disabled = false;
   }
+});
+
+plannerTodayButton.addEventListener("click", () => setPlannerMode("today"));
+plannerTomorrowButton.addEventListener("click", () => setPlannerMode("tomorrow"));
+plannerTaskTime.addEventListener("input", () => plannerTaskTime.setCustomValidity(""));
+plannerForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  const title = plannerTaskTitle.value.trim();
+  const rawTime = plannerTaskTime.value.trim();
+  const time = normalizeTime(rawTime);
+  if (!title) return;
+  if (rawTime && !/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) {
+    plannerTaskTime.setCustomValidity("Ingresá una hora como 08:00 o 8 p.m.");
+    plannerTaskTime.reportValidity();
+    return;
+  }
+  plannerTaskTime.setCustomValidity("");
+
+  const day = getDayByKey(getPlannerDateKey());
+  const existingTask = day.tasks.find((task) => task.id === editingPlannerTaskId);
+  upsertPlannedTask(day, {
+    id: editingPlannerTaskId || createId(),
+    title,
+    time,
+    done: existingTask?.done || false,
+  });
+  plannerStatus.textContent =
+    plannerMode === "tomorrow" ? "Tarea preparada para mañana." : "Tarea agregada para hoy.";
+  editingPlannerTaskId = null;
+  plannerForm.reset();
+  plannerSubmitButton.textContent = "Agregar tarea";
+  plannerCancelButton.hidden = true;
+  render();
 });
 
 habitForm.addEventListener("submit", (event) => {
@@ -1164,29 +1793,6 @@ waterGoalForm.addEventListener("submit", (event) => {
   if (!wasComplete && day.water >= day.plan.waterGoal) celebrateWaterGoal();
 });
 
-resetTodayButton.addEventListener("click", () => {
-  if (!window.confirm("Reiniciar todo lo registrado hoy? Vas a poder deshacerlo.")) return;
-  if (!createRecoveryPoint("reset-today")) return;
-
-  state.days[currentDayKey] = normalizeDay(
-    {
-      habitsDone: {},
-      routinesDone: {},
-      meals: [],
-      water: 0,
-      note: "",
-    },
-    state,
-    currentDayKey,
-  );
-  render();
-  showAppStatus("El dia fue reiniciado.", {
-    tone: "success",
-    actionLabel: "Deshacer",
-    onAction: () => restoreLastRecovery("Recuperamos todos los datos del dia."),
-  });
-});
-
 exportDataButton.addEventListener("click", () => {
   const payload = repository.export(state);
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
@@ -1263,9 +1869,24 @@ function watchForNewDay() {
 
     currentDayKey = nextDayKey;
     selectedHistoryDate = currentDayKey;
+    plannerMode = "today";
+    resetPlannerForm();
     if (state) render();
   };
 
+  const scheduleMidnightRollover = () => {
+    const now = new Date();
+    const nextMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+    window.setTimeout(
+      () => {
+        checkForNewDay();
+        scheduleMidnightRollover();
+      },
+      nextMidnight.getTime() - now.getTime() + 250,
+    );
+  };
+
+  scheduleMidnightRollover();
   window.setInterval(checkForNewDay, 60000);
   window.addEventListener("focus", checkForNewDay);
   document.addEventListener("visibilitychange", () => {

@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { Buffer } from "node:buffer";
 
 const externalBaseURL = process.env.PLAYWRIGHT_BASE_URL;
 const testEmail = process.env.E2E_AUTH_EMAIL || "florencia@example.com";
@@ -12,6 +13,15 @@ async function signIn(page, email = testEmail) {
   await page.getByLabel("Clave", { exact: true }).fill(testPassword);
   await page.locator("#authSubmitButton").click();
   await expect(page.locator(".app-shell")).not.toHaveAttribute("inert", "");
+}
+
+async function signOut(page) {
+  await page.locator("#profileButton").click();
+  await page.getByRole("button", { name: "Cerrar sesión", exact: true }).click();
+}
+
+function navigationTab(page, name) {
+  return page.locator(".tabs").getByRole("tab", { name, exact: true });
 }
 
 test("shows a clean welcome before asking for account details", async ({ page }) => {
@@ -86,7 +96,7 @@ test.describe("authenticated experience", () => {
     ];
 
     for (const [tab, heading] of sections) {
-      await page.getByRole("tab", { name: tab, exact: true }).click();
+      await navigationTab(page, tab).click();
       await expect(page.locator("#sectionTitle")).toHaveText(heading);
     }
   });
@@ -96,13 +106,13 @@ test.describe("authenticated experience", () => {
 
     await expect(page.locator(".app-shell")).not.toHaveAttribute("inert", "");
     await expect(page.locator("#sectionTitle")).toBeFocused();
-    await expect(page.getByRole("tab")).toHaveCount(6);
+    await expect(page.locator(".tabs").getByRole("tab")).toHaveCount(6);
   });
 
   test("persists theme and user data after reload", async ({ page }) => {
     await page.locator(".theme-switch").click();
     await expect(page.locator("#themeToggle")).toBeChecked();
-    await page.getByRole("tab", { name: "Habitos", exact: true }).click();
+    await navigationTab(page, "Habitos").click();
     await page.locator("#habitName").fill("Dormir ocho horas");
     await page.getByRole("button", { name: "Agregar habito" }).click();
     await expect(
@@ -111,26 +121,26 @@ test.describe("authenticated experience", () => {
 
     await page.reload();
     await expect(page.locator("body")).toHaveAttribute("data-theme", "dark");
-    await page.getByRole("tab", { name: "Habitos", exact: true }).click();
+    await navigationTab(page, "Habitos").click();
     await expect(
       page.locator("#habitsPanel").getByText("Dormir ocho horas", { exact: true }),
     ).toBeVisible();
   });
 
   test("celebrates the water goal and records history", async ({ page }) => {
-    await page.getByRole("tab", { name: "Agua", exact: true }).click();
+    await navigationTab(page, "Agua").click();
     await page.locator("#waterGoalInput").fill("250");
     await page.getByRole("button", { name: "Actualizar objetivo" }).click();
     await page.getByRole("button", { name: "+250 ml", exact: true }).click();
 
     await expect(page.locator(".water-meter")).toHaveClass(/goal-celebrating/);
     await expect(page.locator("#waterAmount")).toHaveText("250 ml");
-    await page.getByRole("tab", { name: "Progreso", exact: true }).click();
+    await navigationTab(page, "Progreso").click();
     await expect(page.locator("#historyList .history-day").first()).toBeVisible();
   });
 
   test("counts the complete seven-day window in weekly goals", async ({ page }) => {
-    await page.getByRole("tab", { name: "Progreso", exact: true }).click();
+    await navigationTab(page, "Progreso").click();
 
     const waterGoal = page.locator(".goal-card").filter({ hasText: "Agua" });
     const foodGoal = page.locator(".goal-card").filter({ hasText: "Alimentacion" });
@@ -138,21 +148,135 @@ test.describe("authenticated experience", () => {
     await expect(foodGoal.locator("strong")).toHaveText("0/7");
   });
 
-  test("offers undo after resetting today's data", async ({ page }) => {
-    await page.locator("#dailyNote").fill("Hoy tuve mucha energia");
-    page.once("dialog", (dialog) => dialog.accept());
-    await page.getByRole("button", { name: "Reiniciar dia", exact: true }).click();
+  test("plans today and tomorrow without a manual reset", async ({ page }) => {
+    await expect(page.getByRole("button", { name: "Reiniciar dia" })).toHaveCount(0);
 
-    await expect(page.locator("#dailyNote")).toHaveValue("");
-    await expect(page.locator(".app-status")).toContainText("El dia fue reiniciado.");
-    await page.getByRole("button", { name: "Deshacer", exact: true }).click();
+    await page.locator("#plannerTaskTitle").fill("Revisar agenda");
+    await page.locator("#plannerTaskTime").fill("8 am");
+    await page.locator("#plannerSubmitButton").click();
+    const todayTask = page.locator("#plannerList .item").filter({ hasText: "Revisar agenda" });
+    await todayTask.locator(".check-button").click();
+    await expect(todayTask).toHaveCount(0);
+    await expect(page.locator("#plannerList")).toContainText("Completaste todas las tareas");
 
-    await expect(page.locator("#dailyNote")).toHaveValue("Hoy tuve mucha energia");
-    await expect(page.locator(".app-status")).toContainText("Recuperamos todos los datos del dia.");
-    await page.getByRole("tab", { name: "Progreso", exact: true }).click();
+    await page.locator("#plannerTomorrowButton").click();
+    await page.locator("#plannerTaskTitle").fill("Preparar ropa de entrenamiento");
+    await page.locator("#plannerTaskTime").fill("9 pm");
+    await page.locator("#plannerSubmitButton").click();
+    const tomorrowTask = page
+      .locator("#plannerList .item")
+      .filter({ hasText: "Preparar ropa de entrenamiento" });
+    await expect(tomorrowTask).toContainText("Hora 21:00");
+    await expect(tomorrowTask.locator(".check-button")).toBeDisabled();
+
+    await navigationTab(page, "Progreso").click();
+    await expect(page.locator("#historyList .history-day")).toHaveCount(1);
+    await navigationTab(page, "Hoy").click();
+    await page.reload();
+    await page.locator("#plannerTomorrowButton").click();
     await expect(
-      page.getByRole("button", { name: "Recuperar ultimo cambio", exact: true }),
+      page.locator("#plannerList").getByText("Preparar ropa de entrenamiento", { exact: true }),
     ).toBeVisible();
+  });
+
+  test("removes completed habits from today while preserving streak and history", async ({
+    page,
+  }) => {
+    const habitName = "Tomar agua al despertar";
+    const checklistHabit = page.locator("#todayChecklist .item").filter({ hasText: habitName });
+    await expect(checklistHabit).toBeVisible();
+    await checklistHabit.locator(".check-button").click();
+
+    await expect(checklistHabit).toHaveCount(0);
+    await expect(page.locator(".app-status")).toContainText(`Completaste "${habitName}"`);
+
+    await navigationTab(page, "Habitos").click();
+    const managedHabit = page.locator("#habitList .item").filter({ hasText: habitName });
+    await expect(managedHabit).toContainText("Racha 1");
+
+    await navigationTab(page, "Progreso").click();
+    await expect(page.locator("#historyDetail")).toContainText("Habitos realizados:");
+    await expect(page.locator("#historyDetail")).toContainText(habitName);
+  });
+
+  test("personalizes the profile with a name and photo", async ({ page }) => {
+    await page.locator("#profileButton").click();
+    await expect(page.locator("#profileDialog")).toBeVisible();
+    await page.locator("#profileDisplayName").fill("Flor Inocencio");
+    await page.locator("#profilePhotoInput").setInputFiles({
+      name: "perfil.png",
+      mimeType: "image/png",
+      buffer: Buffer.from(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Z2S8AAAAASUVORK5CYII=",
+        "base64",
+      ),
+    });
+    await expect(page.locator("#profileStatus")).toContainText("Foto lista");
+    await page.locator("#profileSaveButton").click();
+
+    await expect(page.locator("#accountName")).toHaveText("Flor Inocencio");
+    await expect(page.locator("#profileAvatarImage")).toBeVisible();
+    await page.reload();
+    await expect(page.locator("#accountName")).toHaveText("Flor Inocencio");
+    await expect(page.locator("#profileAvatarImage")).toBeVisible();
+  });
+
+  test("adjusts the profile photo crop before saving", async ({ page }) => {
+    await page.locator("#profileButton").click();
+    const photoBytes = await page.evaluate(async () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = 400;
+      canvas.height = 240;
+      const context = canvas.getContext("2d");
+      context.fillStyle = "#d74b4b";
+      context.fillRect(0, 0, 200, 240);
+      context.fillStyle = "#3776d0";
+      context.fillRect(200, 0, 200, 240);
+      const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
+      return [...new Uint8Array(await blob.arrayBuffer())];
+    });
+    await page.locator("#profilePhotoInput").setInputFiles({
+      name: "encuadre.png",
+      mimeType: "image/png",
+      buffer: Buffer.from(photoBytes),
+    });
+
+    await expect(page.locator("#profileCropControls")).toBeVisible();
+    const initialCrop = await page
+      .locator("#profileCropCanvas")
+      .evaluate((canvas) => canvas.toDataURL());
+    await page.locator("#profileCropZoom").fill("2");
+    const zoomedCrop = await page
+      .locator("#profileCropCanvas")
+      .evaluate((canvas) => canvas.toDataURL());
+    expect(zoomedCrop).not.toBe(initialCrop);
+
+    const cropArea = await page.locator("#profileCropViewport").boundingBox();
+    await page.mouse.move(cropArea.x + cropArea.width / 2, cropArea.y + cropArea.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(cropArea.x + cropArea.width * 0.8, cropArea.y + cropArea.height / 2);
+    await page.mouse.up();
+    const movedCrop = await page
+      .locator("#profileCropCanvas")
+      .evaluate((canvas) => canvas.toDataURL());
+    expect(movedCrop).not.toBe(zoomedCrop);
+
+    await page.locator("#profileSaveButton").click();
+    await expect(page.locator("#profileAvatarImage")).toBeVisible();
+  });
+
+  test("explains how to recover from a photo that cannot be decoded", async ({ page }) => {
+    await page.locator("#profileButton").click();
+    await page.locator("#profilePhotoInput").setInputFiles({
+      name: "foto-danada.jpg",
+      mimeType: "image/jpeg",
+      buffer: Buffer.from("not-a-real-photo"),
+    });
+
+    await expect(page.locator("#profileStatus")).toContainText(
+      'No pudimos abrir "foto-danada.jpg"',
+    );
+    await expect(page.locator("#profilePhotoInput")).toBeEnabled();
   });
 
   test("isolates corrupt local data and explains the recovery", async ({ page }) => {
@@ -174,20 +298,20 @@ test.describe("authenticated experience", () => {
   });
 
   test("keeps each account's data separate", async ({ page }) => {
-    await page.getByRole("tab", { name: "Habitos", exact: true }).click();
+    await navigationTab(page, "Habitos").click();
     await page.locator("#habitName").fill("Dato privado de la cuenta A");
     await page.getByRole("button", { name: "Agregar habito" }).click();
-    await page.getByRole("button", { name: "Salir", exact: true }).click();
+    await signOut(page);
 
     await signIn(page, "otra-persona@example.com");
-    await page.getByRole("tab", { name: "Habitos", exact: true }).click();
+    await navigationTab(page, "Habitos").click();
     await expect(
       page.locator("#habitsPanel").getByText("Dato privado de la cuenta A", { exact: true }),
     ).toHaveCount(0);
 
-    await page.getByRole("button", { name: "Salir", exact: true }).click();
+    await signOut(page);
     await signIn(page);
-    await page.getByRole("tab", { name: "Habitos", exact: true }).click();
+    await navigationTab(page, "Habitos").click();
     await expect(
       page.locator("#habitsPanel").getByText("Dato privado de la cuenta A", { exact: true }),
     ).toBeVisible();
@@ -195,7 +319,7 @@ test.describe("authenticated experience", () => {
 
   test("has no horizontal page overflow", async ({ page }) => {
     for (const name of ["Hoy", "Habitos", "Entrenamiento", "Alimentacion", "Agua", "Progreso"]) {
-      await page.getByRole("tab", { name, exact: true }).click();
+      await navigationTab(page, name).click();
       const dimensions = await page.evaluate(() => ({
         clientWidth: document.documentElement.clientWidth,
         scrollWidth: document.documentElement.scrollWidth,

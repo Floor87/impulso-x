@@ -198,18 +198,29 @@
             <h2 id="sectionTitle">Tu dia de hoy</h2>
           </div>
           <div class="topbar-actions">
-            <div class="account-control" aria-label="Cuenta activa">
-              <span id="accountName">Usuario</span>
-              <button class="account-signout" id="signOutButton" type="button">Salir</button>
-            </div>
-            <label class="theme-switch" for="themeToggle">
+            <button
+              class="profile-button"
+              id="profileButton"
+              type="button"
+              aria-haspopup="dialog"
+              aria-label="Abrir mi perfil"
+            >
+              <span class="profile-avatar profile-avatar-small" aria-hidden="true">
+                <img id="profileAvatarImage" alt="" hidden />
+                <span id="profileInitials">U</span>
+              </span>
+              <span class="profile-button-copy">
+                <strong id="accountName">Usuario</strong>
+                <small>Mi perfil</small>
+              </span>
+            </button>
+            <label class="theme-switch" for="themeToggle" aria-label="Cambiar tema de la app">
               <input id="themeToggle" type="checkbox" />
               <span class="switch-track" aria-hidden="true">
                 <span class="switch-thumb"></span>
               </span>
               <span id="themeLabel">Claro</span>
             </label>
-            <button class="ghost-button" id="resetTodayButton" type="button">Reiniciar dia</button>
             <button class="ghost-button install-button" id="installButton" type="button" hidden>
               Instalar app
             </button>
@@ -245,6 +256,68 @@
               <p>registros del dia</p>
             </article>
           </div>
+
+          <article class="section-block planner-block" aria-labelledby="plannerTitle">
+            <div class="planner-heading">
+              <div>
+                <p class="eyebrow" id="plannerDateLabel">Hoy</p>
+                <h3 id="plannerTitle">Planificador del día</h3>
+                <p id="plannerSummary">Prepará tu día y marcá cada tarea cuando la completes.</p>
+              </div>
+              <div class="planner-tabs" role="tablist" aria-label="Día a planificar">
+                <button
+                  class="planner-tab active"
+                  id="plannerTodayButton"
+                  type="button"
+                  role="tab"
+                  aria-selected="true"
+                >
+                  Hoy
+                </button>
+                <button
+                  class="planner-tab"
+                  id="plannerTomorrowButton"
+                  type="button"
+                  role="tab"
+                  aria-selected="false"
+                >
+                  Mañana
+                </button>
+              </div>
+            </div>
+
+            <form class="planner-form" id="plannerForm">
+              <label>
+                Tarea
+                <input
+                  id="plannerTaskTitle"
+                  type="text"
+                  maxlength="120"
+                  placeholder="Ej: Preparar la ropa de entrenamiento"
+                  required
+                />
+              </label>
+              <label class="planner-time-field">
+                Hora opcional
+                <input
+                  id="plannerTaskTime"
+                  type="text"
+                  inputmode="text"
+                  placeholder="Ej: 08:00 o 8 p.m."
+                />
+              </label>
+              <div class="planner-form-actions">
+                <button class="primary-button" id="plannerSubmitButton" type="submit">
+                  Agregar tarea
+                </button>
+                <button class="secondary-button" id="plannerCancelButton" type="button" hidden>
+                  Cancelar
+                </button>
+              </div>
+            </form>
+            <p class="form-status" id="plannerStatus" aria-live="polite"></p>
+            <div class="list planner-list" id="plannerList"></div>
+          </article>
 
           <div class="split-layout">
             <article class="section-block">
@@ -573,6 +646,87 @@
         </section>
       </main>
     </div>
+
+    <dialog class="profile-dialog" id="profileDialog" aria-labelledby="profileDialogTitle">
+      <form class="profile-form" id="profileForm" method="dialog">
+        <div class="profile-dialog-heading">
+          <div>
+            <p class="eyebrow">Tu cuenta</p>
+            <h2 id="profileDialogTitle">Personalizar perfil</h2>
+          </div>
+          <button
+            class="profile-close"
+            id="profileCloseButton"
+            type="button"
+            aria-label="Cerrar perfil"
+          >
+            ×
+          </button>
+        </div>
+
+        <div class="profile-photo-editor">
+          <div class="profile-photo-stage">
+            <div
+              class="profile-avatar profile-avatar-large"
+              id="profileCropViewport"
+              aria-label="Ajustar encuadre de la foto"
+            >
+              <img id="profilePreviewImage" alt="" hidden />
+              <canvas
+                class="profile-crop-canvas"
+                id="profileCropCanvas"
+                width="256"
+                height="256"
+                aria-hidden="true"
+                hidden
+              ></canvas>
+              <span id="profilePreviewInitials" aria-hidden="true">U</span>
+            </div>
+            <label class="profile-crop-controls" id="profileCropControls" hidden>
+              <span>Zoom</span>
+              <input id="profileCropZoom" type="range" min="1" max="3" step="0.05" value="1" />
+            </label>
+          </div>
+          <div class="profile-photo-actions">
+            <label class="file-button profile-file-button">
+              Elegir foto
+              <input
+                id="profilePhotoInput"
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/heic,image/heif,.heic,.heif"
+              />
+            </label>
+            <button
+              class="secondary-button profile-remove-photo"
+              id="profileRemovePhoto"
+              type="button"
+            >
+              Quitar foto
+            </button>
+          </div>
+        </div>
+
+        <label class="profile-name-field">
+          Nombre visible
+          <input
+            id="profileDisplayName"
+            type="text"
+            maxlength="80"
+            autocomplete="name"
+            placeholder="Cómo querés que te llamemos"
+            required
+          />
+        </label>
+        <p class="form-status profile-status" id="profileStatus" aria-live="polite"></p>
+
+        <div class="profile-dialog-actions">
+          <button class="primary-button" id="profileSaveButton" type="submit">
+            Guardar perfil
+          </button>
+          <button class="account-signout" id="signOutButton" type="button">Cerrar sesión</button>
+        </div>
+      </form>
+    </dialog>
 
     <script type="module" src="/src/main.js"></script>
   </body>
