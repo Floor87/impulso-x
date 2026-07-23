@@ -665,10 +665,28 @@
         </div>
 
         <div class="profile-photo-editor">
-          <span class="profile-avatar profile-avatar-large" aria-hidden="true">
-            <img id="profilePreviewImage" alt="" hidden />
-            <span id="profilePreviewInitials">U</span>
-          </span>
+          <div class="profile-photo-stage">
+            <div
+              class="profile-avatar profile-avatar-large"
+              id="profileCropViewport"
+              aria-label="Ajustar encuadre de la foto"
+            >
+              <img id="profilePreviewImage" alt="" hidden />
+              <canvas
+                class="profile-crop-canvas"
+                id="profileCropCanvas"
+                width="256"
+                height="256"
+                aria-hidden="true"
+                hidden
+              ></canvas>
+              <span id="profilePreviewInitials" aria-hidden="true">U</span>
+            </div>
+            <label class="profile-crop-controls" id="profileCropControls" hidden>
+              <span>Zoom</span>
+              <input id="profileCropZoom" type="range" min="1" max="3" step="0.05" value="1" />
+            </label>
+          </div>
           <div class="profile-photo-actions">
             <label class="file-button profile-file-button">
               Elegir foto

@@ -200,6 +200,50 @@ test.describe("authenticated experience", () => {
     await expect(page.locator("#profileAvatarImage")).toBeVisible();
   });
 
+  test("adjusts the profile photo crop before saving", async ({ page }) => {
+    await page.locator("#profileButton").click();
+    const photoBytes = await page.evaluate(async () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = 400;
+      canvas.height = 240;
+      const context = canvas.getContext("2d");
+      context.fillStyle = "#d74b4b";
+      context.fillRect(0, 0, 200, 240);
+      context.fillStyle = "#3776d0";
+      context.fillRect(200, 0, 200, 240);
+      const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
+      return [...new Uint8Array(await blob.arrayBuffer())];
+    });
+    await page.locator("#profilePhotoInput").setInputFiles({
+      name: "encuadre.png",
+      mimeType: "image/png",
+      buffer: Buffer.from(photoBytes),
+    });
+
+    await expect(page.locator("#profileCropControls")).toBeVisible();
+    const initialCrop = await page
+      .locator("#profileCropCanvas")
+      .evaluate((canvas) => canvas.toDataURL());
+    await page.locator("#profileCropZoom").fill("2");
+    const zoomedCrop = await page
+      .locator("#profileCropCanvas")
+      .evaluate((canvas) => canvas.toDataURL());
+    expect(zoomedCrop).not.toBe(initialCrop);
+
+    const cropArea = await page.locator("#profileCropViewport").boundingBox();
+    await page.mouse.move(cropArea.x + cropArea.width / 2, cropArea.y + cropArea.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(cropArea.x + cropArea.width * 0.8, cropArea.y + cropArea.height / 2);
+    await page.mouse.up();
+    const movedCrop = await page
+      .locator("#profileCropCanvas")
+      .evaluate((canvas) => canvas.toDataURL());
+    expect(movedCrop).not.toBe(zoomedCrop);
+
+    await page.locator("#profileSaveButton").click();
+    await expect(page.locator("#profileAvatarImage")).toBeVisible();
+  });
+
   test("explains how to recover from a photo that cannot be decoded", async ({ page }) => {
     await page.locator("#profileButton").click();
     await page.locator("#profilePhotoInput").setInputFiles({

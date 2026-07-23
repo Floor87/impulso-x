@@ -45,6 +45,9 @@ let editingRoutineId = null;
 let editingPlannerTaskId = null;
 let plannerMode = "today";
 let pendingProfileAvatar = "";
+let pendingProfilePhotoSource = null;
+let pendingProfileCrop = createDefaultProfileCrop();
+let profileCropDrag = null;
 let heicModulePromise = null;
 
 const profilePhotoTypes = new Set([
@@ -97,6 +100,10 @@ const profileForm = document.querySelector("#profileForm");
 const profileCloseButton = document.querySelector("#profileCloseButton");
 const profilePreviewImage = document.querySelector("#profilePreviewImage");
 const profilePreviewInitials = document.querySelector("#profilePreviewInitials");
+const profileCropViewport = document.querySelector("#profileCropViewport");
+const profileCropCanvas = document.querySelector("#profileCropCanvas");
+const profileCropControls = document.querySelector("#profileCropControls");
+const profileCropZoom = document.querySelector("#profileCropZoom");
 const profilePhotoInput = document.querySelector("#profilePhotoInput");
 const profileRemovePhoto = document.querySelector("#profileRemovePhoto");
 const profileDisplayName = document.querySelector("#profileDisplayName");
@@ -612,26 +619,44 @@ function renderProfile() {
 }
 
 function openProfileDialog() {
+  releasePendingProfilePhotoSource();
+  resetProfileCrop();
   pendingProfileAvatar = state.profile.avatarDataUrl;
   profileDisplayName.value = state.profile.displayName || authenticatedUserLabel;
   profilePhotoInput.value = "";
-  profileStatus.textContent = "";
+  setProfileStatus("");
   renderProfilePreview();
   profileDialog.showModal();
   profileDisplayName.focus();
 }
 
 function closeProfileDialog() {
+  releasePendingProfilePhotoSource();
+  resetProfileCrop();
   pendingProfileAvatar = state?.profile.avatarDataUrl || "";
   profilePhotoInput.value = "";
-  profileStatus.textContent = "";
+  setProfileStatus("");
   if (profileDialog.open) profileDialog.close();
 }
 
 function renderProfilePreview() {
   const name = profileDisplayName.value.trim() || authenticatedUserLabel;
-  updateAvatarElement(profilePreviewImage, profilePreviewInitials, pendingProfileAvatar, name);
-  profileRemovePhoto.hidden = !pendingProfileAvatar;
+  const isAdjustingPhoto = Boolean(pendingProfilePhotoSource);
+
+  profileCropCanvas.hidden = !isAdjustingPhoto;
+  profileCropControls.hidden = !isAdjustingPhoto;
+  profileCropViewport.classList.toggle("is-adjustable", isAdjustingPhoto);
+  if (isAdjustingPhoto) {
+    profileCropViewport.tabIndex = 0;
+    profilePreviewImage.hidden = true;
+    profilePreviewInitials.hidden = true;
+    renderProfileCropCanvas();
+  } else {
+    profileCropViewport.removeAttribute("tabindex");
+    updateAvatarElement(profilePreviewImage, profilePreviewInitials, pendingProfileAvatar, name);
+  }
+
+  profileRemovePhoto.hidden = !pendingProfileAvatar && !isAdjustingPhoto;
 }
 
 function updateAvatarElement(image, initialsElement, avatarDataUrl, name) {
@@ -665,7 +690,32 @@ function getInitials(name) {
   );
 }
 
-async function optimizeProfilePhoto(file) {
+function createDefaultProfileCrop() {
+  return { x: 0.5, y: 0.5, zoom: 1 };
+}
+
+function resetProfileCrop() {
+  pendingProfileCrop = createDefaultProfileCrop();
+  profileCropZoom.value = String(pendingProfileCrop.zoom);
+  profileCropDrag = null;
+  profileCropViewport.classList.remove("is-dragging");
+}
+
+function releasePendingProfilePhotoSource() {
+  pendingProfilePhotoSource?.close();
+  pendingProfilePhotoSource = null;
+}
+
+function setProfileStatus(message, tone = "") {
+  profileStatus.textContent = message;
+  if (tone) {
+    profileStatus.dataset.tone = tone;
+  } else {
+    delete profileStatus.dataset.tone;
+  }
+}
+
+async function prepareProfilePhoto(file) {
   const hasSupportedExtension = profilePhotoExtensionPattern.test(file.name);
   if ((!file.type || !profilePhotoTypes.has(file.type.toLowerCase())) && !hasSupportedExtension) {
     throw new Error("Elegí una imagen JPG, PNG, WebP, HEIC o HEIF.");
@@ -674,40 +724,74 @@ async function optimizeProfilePhoto(file) {
     throw new Error("La foto debe pesar menos de 8 MB.");
   }
 
-  let decodedImage;
-  try {
-    decodedImage = await decodeProfilePhoto(file);
-    const canvas = document.createElement("canvas");
-    const size = 256;
-    canvas.width = size;
-    canvas.height = size;
-    const context = canvas.getContext("2d");
-    if (!context) throw new Error("Este navegador no pudo preparar la foto.");
+  return decodeProfilePhoto(file);
+}
 
-    const sourceSize = Math.min(decodedImage.width, decodedImage.height);
-    const sourceX = (decodedImage.width - sourceSize) / 2;
-    const sourceY = (decodedImage.height - sourceSize) / 2;
-    context.drawImage(
-      decodedImage.source,
-      sourceX,
-      sourceY,
-      sourceSize,
-      sourceSize,
-      0,
-      0,
-      size,
-      size,
-    );
+function getProfileCropRectangle() {
+  const { width, height } = pendingProfilePhotoSource;
+  const sourceSize = Math.min(width, height) / pendingProfileCrop.zoom;
+  return {
+    size: sourceSize,
+    x: (width - sourceSize) * pendingProfileCrop.x,
+    y: (height - sourceSize) * pendingProfileCrop.y,
+  };
+}
 
-    let dataUrl = canvas.toDataURL("image/webp", 0.82);
-    if (dataUrl.length > 220_000) dataUrl = canvas.toDataURL("image/jpeg", 0.72);
-    if (dataUrl.length > 220_000) {
-      throw new Error("No pudimos comprimir la foto. Probá con otra imagen.");
-    }
-    return dataUrl;
-  } finally {
-    decodedImage?.close();
+function renderProfileCropCanvas() {
+  if (!pendingProfilePhotoSource) return;
+  const context = profileCropCanvas.getContext("2d");
+  if (!context) throw new Error("Este navegador no pudo preparar la foto.");
+
+  const crop = getProfileCropRectangle();
+  context.clearRect(0, 0, profileCropCanvas.width, profileCropCanvas.height);
+  context.drawImage(
+    pendingProfilePhotoSource.source,
+    crop.x,
+    crop.y,
+    crop.size,
+    crop.size,
+    0,
+    0,
+    profileCropCanvas.width,
+    profileCropCanvas.height,
+  );
+}
+
+function commitProfileCrop() {
+  if (!pendingProfilePhotoSource) return pendingProfileAvatar;
+  renderProfileCropCanvas();
+
+  let dataUrl = profileCropCanvas.toDataURL("image/webp", 0.82);
+  if (dataUrl.length > 220_000) dataUrl = profileCropCanvas.toDataURL("image/jpeg", 0.72);
+  if (dataUrl.length > 220_000) {
+    throw new Error("No pudimos comprimir la foto. Probá con otra imagen.");
   }
+  pendingProfileAvatar = dataUrl;
+  return dataUrl;
+}
+
+function clampProfileCrop(value) {
+  return Math.min(1, Math.max(0, value));
+}
+
+function moveProfileCrop(deltaX, deltaY, origin = pendingProfileCrop) {
+  if (!pendingProfilePhotoSource) return;
+  const viewport = profileCropViewport.getBoundingClientRect();
+  const { width, height } = pendingProfilePhotoSource;
+  const cropSize = Math.min(width, height) / pendingProfileCrop.zoom;
+  const sourcePixelsPerScreenPixel = cropSize / viewport.width;
+  const horizontalTravel = width - cropSize;
+  const verticalTravel = height - cropSize;
+
+  pendingProfileCrop.x =
+    horizontalTravel > 0
+      ? clampProfileCrop(origin.x - (deltaX * sourcePixelsPerScreenPixel) / horizontalTravel)
+      : 0.5;
+  pendingProfileCrop.y =
+    verticalTravel > 0
+      ? clampProfileCrop(origin.y - (deltaY * sourcePixelsPerScreenPixel) / verticalTravel)
+      : 0.5;
+  renderProfileCropCanvas();
 }
 
 async function decodeProfilePhoto(file) {
@@ -1432,23 +1516,86 @@ profilePhotoInput.addEventListener("change", async () => {
   if (!file) return;
 
   profilePhotoInput.disabled = true;
-  profileStatus.textContent = "Preparando foto...";
+  setProfileStatus("Preparando foto...");
   try {
-    pendingProfileAvatar = await optimizeProfilePhoto(file);
-    profileStatus.textContent = "Foto lista para guardar.";
+    const decodedPhoto = await prepareProfilePhoto(file);
+    releasePendingProfilePhotoSource();
+    pendingProfilePhotoSource = decodedPhoto;
+    resetProfileCrop();
     renderProfilePreview();
+    commitProfileCrop();
+    setProfileStatus("Foto lista para guardar.", "success");
   } catch (error) {
-    profileStatus.textContent = error?.message || "No pudimos preparar esa foto.";
+    setProfileStatus(error?.message || "No pudimos preparar esa foto.", "error");
     profilePhotoInput.value = "";
   } finally {
     profilePhotoInput.disabled = false;
   }
 });
 profileRemovePhoto.addEventListener("click", () => {
+  releasePendingProfilePhotoSource();
+  resetProfileCrop();
   pendingProfileAvatar = "";
   profilePhotoInput.value = "";
-  profileStatus.textContent = "La foto se quitará al guardar.";
+  setProfileStatus("La foto se quitará al guardar.");
   renderProfilePreview();
+});
+profileCropZoom.addEventListener("input", () => {
+  pendingProfileCrop.zoom = Number(profileCropZoom.value);
+  renderProfileCropCanvas();
+});
+profileCropZoom.addEventListener("change", () => {
+  commitProfileCrop();
+  setProfileStatus("Encuadre actualizado.", "success");
+});
+profileCropViewport.addEventListener("pointerdown", (event) => {
+  if (!pendingProfilePhotoSource) return;
+  event.preventDefault();
+  profileCropViewport.focus();
+  profileCropViewport.setPointerCapture(event.pointerId);
+  profileCropDrag = {
+    pointerId: event.pointerId,
+    startX: event.clientX,
+    startY: event.clientY,
+    crop: { ...pendingProfileCrop },
+  };
+  profileCropViewport.classList.add("is-dragging");
+});
+profileCropViewport.addEventListener("pointermove", (event) => {
+  if (profileCropDrag?.pointerId !== event.pointerId) return;
+  moveProfileCrop(
+    event.clientX - profileCropDrag.startX,
+    event.clientY - profileCropDrag.startY,
+    profileCropDrag.crop,
+  );
+});
+profileCropViewport.addEventListener("pointerup", (event) => {
+  if (profileCropDrag?.pointerId !== event.pointerId) return;
+  profileCropDrag = null;
+  profileCropViewport.classList.remove("is-dragging");
+  profileCropViewport.releasePointerCapture(event.pointerId);
+  commitProfileCrop();
+  setProfileStatus("Encuadre actualizado.", "success");
+});
+profileCropViewport.addEventListener("pointercancel", () => {
+  profileCropDrag = null;
+  profileCropViewport.classList.remove("is-dragging");
+  commitProfileCrop();
+});
+profileCropViewport.addEventListener("keydown", (event) => {
+  if (!pendingProfilePhotoSource || !event.key.startsWith("Arrow")) return;
+  event.preventDefault();
+  const amount = event.shiftKey ? 18 : 6;
+  const directions = {
+    ArrowLeft: [-amount, 0],
+    ArrowRight: [amount, 0],
+    ArrowUp: [0, -amount],
+    ArrowDown: [0, amount],
+  };
+  const [deltaX, deltaY] = directions[event.key];
+  moveProfileCrop(deltaX, deltaY);
+  commitProfileCrop();
+  setProfileStatus("Encuadre actualizado.", "success");
 });
 profileForm.addEventListener("submit", (event) => {
   event.preventDefault();
@@ -1459,6 +1606,12 @@ profileForm.addEventListener("submit", (event) => {
     return;
   }
   profileDisplayName.setCustomValidity("");
+  try {
+    commitProfileCrop();
+  } catch (error) {
+    setProfileStatus(error?.message || "No pudimos guardar esa foto.", "error");
+    return;
+  }
   state.profile = {
     displayName,
     avatarDataUrl: pendingProfileAvatar,
