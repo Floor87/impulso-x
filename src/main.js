@@ -918,7 +918,13 @@ function renderPlanner() {
     return;
   }
 
-  tasks.forEach((task) => {
+  const visibleTasks = isToday ? tasks.filter((task) => !task.done) : tasks;
+  if (!visibleTasks.length) {
+    plannerList.append(emptyState("Completaste todas las tareas de hoy."));
+    return;
+  }
+
+  visibleTasks.forEach((task) => {
     const status = isToday ? (task.done ? "Completada" : "Pendiente") : "Lista para mañana";
     plannerList.append(
       itemElement({
@@ -962,8 +968,20 @@ function resetPlannerForm() {
 }
 
 function togglePlannerTask(id) {
-  togglePlannedTask(getDay(), id);
+  const day = getDay();
+  const task = day.tasks.find((item) => item.id === id);
+  const completed = togglePlannedTask(day, id);
   render();
+  if (completed && task) {
+    showAppStatus(`Completaste "${task.title}".`, {
+      tone: "success",
+      actionLabel: "Deshacer",
+      onAction: () => {
+        togglePlannedTask(day, id);
+        render();
+      },
+    });
+  }
 }
 
 function deletePlannerTask(id) {
@@ -1019,14 +1037,19 @@ function renderHabits(day) {
     return;
   }
 
-  day.plan.habits.forEach((habit) => {
-    const done = Boolean(day.habitsDone[habit.id]);
+  const pendingHabits = day.plan.habits.filter((habit) => !day.habitsDone[habit.id]);
+  if (!pendingHabits.length) {
+    todayChecklist.append(emptyState("Completaste todos tus habitos de hoy."));
+    return;
+  }
+
+  pendingHabits.forEach((habit) => {
     const streak = getHabitStreak(state, habit.id, currentDayKey);
     todayChecklist.append(
       itemElement({
         title: habit.name,
         meta: `Habito · ${formatHabitSchedule(habit)} · Racha ${streak}`,
-        done,
+        done: false,
         onToggle: () => toggleHabit(habit.id),
       }),
     );
@@ -1144,6 +1167,10 @@ function renderHistory() {
   const meals = selectedDay.meals.length
     ? selectedDay.meals.map((meal) => `${meal.type}: ${meal.text}`).join(" · ")
     : "Sin comidas registradas.";
+  const completedHabits = selectedDay.plan.habits
+    .filter((habit) => selectedDay.habitsDone[habit.id])
+    .map((habit) => habit.name);
+  const habits = completedHabits.length ? completedHabits.join(" · ") : "Sin habitos realizados.";
   const tasks = selectedDay.tasks.length
     ? selectedDay.tasks
         .map((task) => `${task.done ? "Hecha" : "Pendiente"}: ${task.title}`)
@@ -1154,6 +1181,7 @@ function renderHistory() {
   const text = document.createElement("div");
   text.className = "history-notes";
   text.innerHTML = `
+    <p><strong>Habitos realizados:</strong> ${escapeHtml(habits)}</p>
     <p><strong>Plan:</strong> ${escapeHtml(tasks)}</p>
     <p><strong>Alimentacion:</strong> ${escapeHtml(meals)}</p>
     <p><strong>Nota:</strong> ${escapeHtml(note)}</p>
@@ -1443,8 +1471,19 @@ function resetTrainingForm() {
 
 function toggleHabit(id) {
   const day = getDay();
-  toggleHabitState(day, id);
+  const habit = day.plan.habits.find((item) => item.id === id);
+  const completed = toggleHabitState(day, id);
   render();
+  if (completed && habit) {
+    showAppStatus(`Completaste "${habit.name}".`, {
+      tone: "success",
+      actionLabel: "Deshacer",
+      onAction: () => {
+        toggleHabitState(day, id);
+        render();
+      },
+    });
+  }
 }
 
 function deleteHabit(id) {

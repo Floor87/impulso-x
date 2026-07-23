@@ -156,7 +156,8 @@ test.describe("authenticated experience", () => {
     await page.locator("#plannerSubmitButton").click();
     const todayTask = page.locator("#plannerList .item").filter({ hasText: "Revisar agenda" });
     await todayTask.locator(".check-button").click();
-    await expect(todayTask).toHaveClass(/done/);
+    await expect(todayTask).toHaveCount(0);
+    await expect(page.locator("#plannerList")).toContainText("Completaste todas las tareas");
 
     await page.locator("#plannerTomorrowButton").click();
     await page.locator("#plannerTaskTitle").fill("Preparar ropa de entrenamiento");
@@ -176,6 +177,26 @@ test.describe("authenticated experience", () => {
     await expect(
       page.locator("#plannerList").getByText("Preparar ropa de entrenamiento", { exact: true }),
     ).toBeVisible();
+  });
+
+  test("removes completed habits from today while preserving streak and history", async ({
+    page,
+  }) => {
+    const habitName = "Tomar agua al despertar";
+    const checklistHabit = page.locator("#todayChecklist .item").filter({ hasText: habitName });
+    await expect(checklistHabit).toBeVisible();
+    await checklistHabit.locator(".check-button").click();
+
+    await expect(checklistHabit).toHaveCount(0);
+    await expect(page.locator(".app-status")).toContainText(`Completaste "${habitName}"`);
+
+    await navigationTab(page, "Habitos").click();
+    const managedHabit = page.locator("#habitList .item").filter({ hasText: habitName });
+    await expect(managedHabit).toContainText("Racha 1");
+
+    await navigationTab(page, "Progreso").click();
+    await expect(page.locator("#historyDetail")).toContainText("Habitos realizados:");
+    await expect(page.locator("#historyDetail")).toContainText(habitName);
   });
 
   test("personalizes the profile with a name and photo", async ({ page }) => {
