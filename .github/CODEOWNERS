@@ -1,0 +1,16 @@
+# Propiedad general
+* @Floor87
+
+# Cambios de alto riesgo
+/.github/ @Floor87
+/package.json @Floor87
+/pnpm-lock.yaml @Floor87
+/vite.config.js @Floor87
+/vitest.config.js @Floor87
+/playwright.config.js @Floor87
+/vercel.json @Floor87
+/src/data/ @Floor87
+/supabase/ @Floor87
+/.env.example @Floor87
+/docs/DEPLOYMENT.md @Floor87
+/docs/RECOVERY.md @Floor87

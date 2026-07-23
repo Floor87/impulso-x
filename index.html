@@ -9,24 +9,136 @@
     <meta name="apple-mobile-web-app-title" content="IMPULSOX" />
     <meta name="mobile-web-app-capable" content="yes" />
     <title>IMPULSOX</title>
-    <link rel="manifest" href="./manifest.json" />
-    <link rel="apple-touch-icon" href="./icons/icon-180.png" />
-    <link rel="stylesheet" href="./styles.css" />
+    <link rel="apple-touch-icon" href="/icons/icon-180.png" />
   </head>
   <body class="intro-active">
-    <section class="intro-screen" id="introScreen" aria-label="Ingreso a IMPULSOX">
+    <section
+      class="intro-screen"
+      id="introScreen"
+      data-auth-view="welcome"
+      aria-label="Ingreso a IMPULSOX"
+    >
       <div class="particle-field" id="particleField" aria-hidden="true"></div>
-      <div class="intro-content">
-        <img class="intro-logo" src="./brand/impulsox-logo-transparent.png" alt="IMPULSOX" />
-        <p class="intro-phrase">no importa el ritmo, ya le gane a mi yo del pasado</p>
+      <div class="intro-layout">
+        <div class="intro-content">
+          <img class="intro-logo" src="/brand/impulsox-logo-transparent.png" alt="IMPULSOX" />
+          <p class="intro-phrase">no importa el ritmo, ya le gané a mi yo del pasado</p>
+          <div class="intro-actions" id="introActions" aria-label="Opciones de acceso">
+            <button class="intro-action intro-action-primary" id="introLoginButton" type="button">
+              Ingresar
+            </button>
+            <button
+              class="intro-action intro-action-secondary"
+              id="introSignupButton"
+              type="button"
+            >
+              Crear cuenta
+            </button>
+          </div>
+        </div>
+
+        <article class="auth-panel" id="authPanel" aria-labelledby="authTitle" hidden>
+          <button class="auth-back" id="authBackButton" type="button">
+            <span aria-hidden="true">←</span>
+            Volver
+          </button>
+          <div class="auth-mode-tabs" id="authModeTabs" role="tablist" aria-label="Acceso">
+            <button
+              class="auth-mode-button active"
+              id="loginModeButton"
+              type="button"
+              role="tab"
+              aria-selected="true"
+            >
+              Ingresar
+            </button>
+            <button
+              class="auth-mode-button"
+              id="signupModeButton"
+              type="button"
+              role="tab"
+              aria-selected="false"
+            >
+              Crear cuenta
+            </button>
+          </div>
+
+          <div class="auth-heading">
+            <h2 id="authTitle">Ingresar</h2>
+            <p id="authSubtitle">Volvé a tu progreso.</p>
+          </div>
+
+          <form class="auth-form" id="authForm">
+            <label class="auth-field" id="authNameField" hidden>
+              Nombre de usuario
+              <input
+                id="authName"
+                type="text"
+                autocomplete="name"
+                maxlength="80"
+                placeholder="Cómo querés que te llamemos"
+              />
+            </label>
+
+            <label class="auth-field" id="authEmailField">
+              Correo
+              <input
+                id="authEmail"
+                type="email"
+                autocomplete="email"
+                inputmode="email"
+                placeholder="tu@correo.com"
+                required
+              />
+            </label>
+
+            <label class="auth-field" id="authPasswordField">
+              Clave
+              <input
+                id="authPassword"
+                type="password"
+                autocomplete="current-password"
+                minlength="8"
+                placeholder="Mínimo 8 caracteres"
+                required
+              />
+            </label>
+
+            <label class="auth-field" id="authPasswordConfirmationField" hidden>
+              Repetir clave
+              <input
+                id="authPasswordConfirmation"
+                type="password"
+                autocomplete="new-password"
+                minlength="8"
+                placeholder="Repetí la clave"
+              />
+            </label>
+
+            <div class="auth-options">
+              <label class="password-visibility" id="passwordVisibilityField">
+                <input id="passwordVisibility" type="checkbox" />
+                <span>Mostrar clave</span>
+              </label>
+              <button class="auth-link" id="forgotPasswordButton" type="button">
+                Olvidé mi clave
+              </button>
+              <button class="auth-link" id="backToLoginButton" type="button" hidden>
+                Volver a ingresar
+              </button>
+            </div>
+
+            <button class="auth-submit" id="authSubmitButton" type="submit">Ingresar</button>
+            <p class="auth-status" id="authStatus" aria-live="polite"></p>
+          </form>
+        </article>
       </div>
-      <button class="intro-button" id="startAppButton" type="button">Iniciar</button>
     </section>
 
     <div class="app-shell">
       <aside class="sidebar" aria-label="Navegacion principal">
         <div class="brand">
-          <img class="brand-logo" src="./brand/impulsox-logo.jpeg" alt="IMPULSOX" />
+          <img class="brand-logo" src="/brand/impulsox-logo.jpeg" alt="IMPULSOX" />
           <div>
             <h1>IMPULSOX</h1>
             <p>Habitos, energia y constancia</p>
@@ -34,12 +146,48 @@
         </div>
 
         <nav class="tabs" aria-label="Secciones" role="tablist">
-          <button class="tab active" id="todayTab" data-tab="today" role="tab" aria-controls="todayPanel">Hoy</button>
-          <button class="tab" id="habitsTab" data-tab="habits" role="tab" aria-controls="habitsPanel">Habitos</button>
-          <button class="tab" id="trainingTab" data-tab="training" role="tab" aria-controls="trainingPanel">Entrenamiento</button>
-          <button class="tab" id="foodTab" data-tab="food" role="tab" aria-controls="foodPanel">Alimentacion</button>
-          <button class="tab" id="waterTab" data-tab="water" role="tab" aria-controls="waterPanel">Agua</button>
-          <button class="tab" id="progressTab" data-tab="progress" role="tab" aria-controls="progressPanel">Progreso</button>
+          <button
+            class="tab active"
+            id="todayTab"
+            data-tab="today"
+            role="tab"
+            aria-controls="todayPanel"
+          >
+            Hoy
+          </button>
+          <button
+            class="tab"
+            id="habitsTab"
+            data-tab="habits"
+            role="tab"
+            aria-controls="habitsPanel"
+          >
+            Habitos
+          </button>
+          <button
+            class="tab"
+            id="trainingTab"
+            data-tab="training"
+            role="tab"
+            aria-controls="trainingPanel"
+          >
+            Entrenamiento
+          </button>
+          <button class="tab" id="foodTab" data-tab="food" role="tab" aria-controls="foodPanel">
+            Alimentacion
+          </button>
+          <button class="tab" id="waterTab" data-tab="water" role="tab" aria-controls="waterPanel">
+            Agua
+          </button>
+          <button
+            class="tab"
+            id="progressTab"
+            data-tab="progress"
+            role="tab"
+            aria-controls="progressPanel"
+          >
+            Progreso
+          </button>
         </nav>
       </aside>
 
@@ -50,6 +198,10 @@
             <h2 id="sectionTitle">Tu dia de hoy</h2>
           </div>
           <div class="topbar-actions">
+            <div class="account-control" aria-label="Cuenta activa">
+              <span id="accountName">Usuario</span>
+              <button class="account-signout" id="signOutButton" type="button">Salir</button>
+            </div>
             <label class="theme-switch" for="themeToggle">
               <input id="themeToggle" type="checkbox" />
               <span class="switch-track" aria-hidden="true">
@@ -57,16 +209,20 @@
               </span>
               <span id="themeLabel">Claro</span>
             </label>
-            <button class="ghost-button" id="resetTodayButton" type="button">
-              Reiniciar dia
-            </button>
+            <button class="ghost-button" id="resetTodayButton" type="button">Reiniciar dia</button>
             <button class="ghost-button install-button" id="installButton" type="button" hidden>
               Instalar app
             </button>
           </div>
         </header>
 
-        <section class="panel active" id="todayPanel" data-panel="today" role="tabpanel" aria-labelledby="todayTab">
+        <section
+          class="panel active"
+          id="todayPanel"
+          data-panel="today"
+          role="tabpanel"
+          aria-labelledby="todayTab"
+        >
           <div class="daily-grid">
             <article class="summary-card accent-green">
               <span>Habitos</span>
@@ -113,7 +269,13 @@
           </div>
         </section>
 
-        <section class="panel" id="habitsPanel" data-panel="habits" role="tabpanel" aria-labelledby="habitsTab">
+        <section
+          class="panel"
+          id="habitsPanel"
+          data-panel="habits"
+          role="tabpanel"
+          aria-labelledby="habitsTab"
+        >
           <div class="two-column">
             <form class="composer" id="habitForm">
               <h3 id="habitFormTitle">Agregar habito</h3>
@@ -172,7 +334,13 @@
           </div>
         </section>
 
-        <section class="panel" id="trainingPanel" data-panel="training" role="tabpanel" aria-labelledby="trainingTab">
+        <section
+          class="panel"
+          id="trainingPanel"
+          data-panel="training"
+          role="tabpanel"
+          aria-labelledby="trainingTab"
+        >
           <div class="two-column">
             <form class="composer" id="trainingForm">
               <h3 id="trainingFormTitle">Agregar rutina</h3>
@@ -220,7 +388,13 @@
           </div>
         </section>
 
-        <section class="panel" id="foodPanel" data-panel="food" role="tabpanel" aria-labelledby="foodTab">
+        <section
+          class="panel"
+          id="foodPanel"
+          data-panel="food"
+          role="tabpanel"
+          aria-labelledby="foodTab"
+        >
           <div class="two-column">
             <form class="composer" id="foodForm">
               <h3>Registrar comida</h3>
@@ -255,7 +429,13 @@
           </div>
         </section>
 
-        <section class="panel" id="waterPanel" data-panel="water" role="tabpanel" aria-labelledby="waterTab">
+        <section
+          class="panel"
+          id="waterPanel"
+          data-panel="water"
+          role="tabpanel"
+          aria-labelledby="waterTab"
+        >
           <div class="water-layout">
             <article class="water-meter">
               <div class="water-sparkles" aria-hidden="true">
@@ -292,7 +472,13 @@
           </div>
         </section>
 
-        <section class="panel" id="progressPanel" data-panel="progress" role="tabpanel" aria-labelledby="progressTab">
+        <section
+          class="panel"
+          id="progressPanel"
+          data-panel="progress"
+          role="tabpanel"
+          aria-labelledby="progressTab"
+        >
           <div class="daily-grid progress-summary-grid">
             <article class="summary-card accent-green">
               <span>Semana</span>
@@ -380,12 +566,14 @@
                 <input id="importDataInput" type="file" accept="application/json" />
               </label>
             </div>
-            <p class="helper-text" id="backupStatus" aria-live="polite">Tus datos se guardan en este navegador.</p>
+            <p class="helper-text" id="backupStatus" aria-live="polite">
+              Tus datos se guardan en este navegador.
+            </p>
           </article>
         </section>
       </main>
     </div>
 
-    <script src="./app.js"></script>
+    <script type="module" src="/src/main.js"></script>
   </body>
 </html>

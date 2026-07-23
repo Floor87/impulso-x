@@ -1,0 +1,34 @@
+name: Database
+
+on:
+  pull_request:
+    paths:
+      - "supabase/**"
+      - ".github/workflows/database.yml"
+  push:
+    branches: [main]
+    paths:
+      - "supabase/**"
+      - ".github/workflows/database.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: database-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  database:
+    name: Supabase migrations and RLS
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.101.0
+      - run: supabase start
+      - run: supabase db reset --local
+      - run: supabase test db
+      - run: supabase db lint --local --level error
