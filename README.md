@@ -7,7 +7,7 @@ los datos de cada persona.
 
 ## Requisitos
 
-- Node.js 22.12 o superior.
+- Node.js 22 LTS.
 - pnpm 11.
 
 ## Desarrollo local
