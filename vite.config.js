@@ -1,8 +1,36 @@
 import { defineConfig } from "vite";
 import { VitePWA } from "vite-plugin-pwa";
 
+function releaseMetadata() {
+  const commit =
+    process.env.IMPULSOX_COMMIT_SHA ||
+    process.env.VERCEL_GIT_COMMIT_SHA ||
+    process.env.GITHUB_SHA ||
+    "local";
+
+  return {
+    name: "impulsox-release-metadata",
+    generateBundle() {
+      this.emitFile({
+        type: "asset",
+        fileName: "version.json",
+        source: JSON.stringify(
+          {
+            application: "IMPULSOX",
+            version: process.env.npm_package_version || "0.1.0",
+            commit,
+          },
+          null,
+          2,
+        ),
+      });
+    },
+  };
+}
+
 export default defineConfig({
   plugins: [
+    releaseMetadata(),
     VitePWA({
       registerType: "autoUpdate",
       injectRegister: "auto",
@@ -42,6 +70,7 @@ export default defineConfig({
       workbox: {
         cleanupOutdatedCaches: true,
         globPatterns: ["**/*.{html,js,css,png,jpeg,svg,woff2}"],
+        globIgnores: ["**/assets/heic-to-*.js"],
         navigateFallback: "/index.html",
       },
     }),

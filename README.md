@@ -7,7 +7,7 @@ los datos de cada persona.
 
 ## Requisitos
 
-- Node.js 22.12 o superior.
+- Node.js 24 LTS.
 - pnpm 11.
 
 ## Desarrollo local
@@ -53,6 +53,7 @@ pnpm preview
 - Colaboracion humana: [CONTRIBUTING.md](CONTRIBUTING.md)
 - Arquitectura: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 - Despliegue: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)
+- Preparacion comercial: [docs/COMMERCIAL_READINESS.md](docs/COMMERCIAL_READINESS.md)
 - Recuperacion: [docs/RECOVERY.md](docs/RECOVERY.md)
 - Operacion verificable: [docs/OPERATIONS.md](docs/OPERATIONS.md)
 

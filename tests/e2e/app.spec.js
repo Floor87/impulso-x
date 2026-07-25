@@ -1,15 +1,63 @@
 import { expect, test } from "@playwright/test";
+import { createClient } from "@supabase/supabase-js";
 
 const externalBaseURL = process.env.PLAYWRIGHT_BASE_URL;
 const testEmail = process.env.E2E_AUTH_EMAIL || "florencia@example.com";
 const testPassword = process.env.E2E_AUTH_PASSWORD || "impulsox-test-2026";
+const secondaryEmail = process.env.E2E_AUTH_SECONDARY_EMAIL || "otra-persona@example.com";
+const secondaryPassword = process.env.E2E_AUTH_SECONDARY_PASSWORD || testPassword;
+const supabaseUrl = process.env.E2E_SUPABASE_URL;
+const supabaseKey = process.env.E2E_SUPABASE_PUBLISHABLE_KEY;
+const expectedCommit = process.env.E2E_EXPECTED_COMMIT;
+const requiresRemoteAuth = process.env.E2E_REQUIRE_AUTH === "true";
 const canAuthenticate =
   !externalBaseURL || Boolean(process.env.E2E_AUTH_EMAIL && process.env.E2E_AUTH_PASSWORD);
 
-async function signIn(page, email = testEmail) {
+if (
+  requiresRemoteAuth &&
+  (!externalBaseURL ||
+    !process.env.E2E_AUTH_EMAIL ||
+    !process.env.E2E_AUTH_PASSWORD ||
+    !process.env.E2E_AUTH_SECONDARY_EMAIL ||
+    !process.env.E2E_AUTH_SECONDARY_PASSWORD ||
+    !supabaseUrl ||
+    !supabaseKey)
+) {
+  throw new Error(
+    "Release E2E requires its base URL, two technical accounts and the public Supabase client configuration.",
+  );
+}
+
+async function resetTechnicalAccount(email, password) {
+  const client = createClient(supabaseUrl, supabaseKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  });
+  const { data, error: authError } = await client.auth.signInWithPassword({ email, password });
+  if (authError) throw authError;
+
+  const { error: deleteError } = await client
+    .from("user_states")
+    .delete()
+    .eq("user_id", data.user.id);
+  if (deleteError) throw deleteError;
+
+  await client.auth.signOut();
+}
+
+test.beforeAll(async () => {
+  if (!requiresRemoteAuth) return;
+
+  await resetTechnicalAccount(testEmail, testPassword);
+  await resetTechnicalAccount(secondaryEmail, secondaryPassword);
+});
+
+async function signIn(page, email = testEmail, password = testPassword) {
   await page.locator("#introLoginButton").click();
   await page.getByLabel("Correo").fill(email);
-  await page.getByLabel("Clave", { exact: true }).fill(testPassword);
+  await page.getByLabel("Clave", { exact: true }).fill(password);
   await page.locator("#authSubmitButton").click();
   await expect(page.locator(".app-shell")).not.toHaveAttribute("inert", "");
 }
@@ -65,6 +113,24 @@ test("serves a valid installable manifest", async ({ request }) => {
   const manifest = await response.json();
   expect(manifest.name).toBe("IMPULSOX");
   expect(manifest.icons.some((icon) => icon.sizes === "512x512")).toBe(true);
+});
+
+test("serves verifiable release metadata", async ({ request }) => {
+  const response = await request.get("/version.json", {
+    headers: {
+      "Cache-Control": "no-cache",
+    },
+  });
+  expect(response.ok()).toBe(true);
+
+  const metadata = await response.json();
+  expect(metadata.application).toBe("IMPULSOX");
+  expect(metadata.version).toMatch(/^\d+\.\d+\.\d+$/);
+  expect(metadata.commit).toMatch(/^(local|[0-9a-f]{7,40})$/);
+
+  if (expectedCommit) {
+    expect(metadata.commit).toBe(expectedCommit);
+  }
 });
 
 test.describe("authenticated experience", () => {
@@ -179,7 +245,7 @@ test.describe("authenticated experience", () => {
     await page.getByRole("button", { name: "Agregar habito" }).click();
     await page.getByRole("button", { name: "Salir", exact: true }).click();
 
-    await signIn(page, "otra-persona@example.com");
+    await signIn(page, secondaryEmail, secondaryPassword);
     await page.getByRole("tab", { name: "Habitos", exact: true }).click();
     await expect(
       page.locator("#habitsPanel").getByText("Dato privado de la cuenta A", { exact: true }),
