@@ -53,6 +53,7 @@ pnpm preview
 - Colaboracion humana: [CONTRIBUTING.md](CONTRIBUTING.md)
 - Arquitectura: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 - Despliegue: [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)
+- Preparacion comercial: [docs/COMMERCIAL_READINESS.md](docs/COMMERCIAL_READINESS.md)
 - Recuperacion: [docs/RECOVERY.md](docs/RECOVERY.md)
 - Operacion verificable: [docs/OPERATIONS.md](docs/OPERATIONS.md)
 
