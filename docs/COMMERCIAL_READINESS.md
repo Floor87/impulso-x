@@ -13,19 +13,19 @@ controles de datos necesarios para atender clientes reales.
 
 ## Bloqueos de lanzamiento
 
-| Area           | Estado      | Requisito de cierre                                                 | Evidencia                            |
-| -------------- | ----------- | ------------------------------------------------------------------- | ------------------------------------ |
-| Release        | En progreso | PR #14 aprobada, checks verdes y environment protegido              | Ejecucion de GitHub Actions          |
-| Staging        | Bloqueado   | Proyecto o branch de Supabase separado de produccion                | Referencia del proyecto y prueba RLS |
-| Privacidad     | En progreso | Completar responsable y obtener revision juridica                   | Version beta enlazada desde la app   |
-| Terminos       | En progreso | Completar condiciones comerciales y obtener revision juridica       | Version beta enlazada desde la app   |
-| Cuenta         | En progreso | Desplegar y verificar la funcion de eliminacion en staging          | Implementacion y E2E local           |
-| Sincronizacion | En progreso | Aplicar migracion en staging y probar dos dispositivos              | Funcion atomica y pruebas unitarias  |
-| Correo         | Pendiente   | SMTP propio con SPF, DKIM y DMARC                                   | Prueba de entrega                    |
-| Abuso          | Pendiente   | CAPTCHA y limites de intentos en alta, acceso y recuperacion        | Prueba automatizada                  |
-| Recuperacion   | Pendiente   | Backup y restauracion probados con tiempo objetivo definido         | Acta de simulacro                    |
-| Dominio        | Pendiente   | Dominio, correo de soporte y URLs de Auth verificados               | DNS y redireccion probados           |
-| Soporte        | Pendiente   | Canal, horario y procedimiento de incidentes                        | Documento operativo                  |
+| Area           | Estado      | Requisito de cierre                                               | Evidencia                            |
+| -------------- | ----------- | ----------------------------------------------------------------- | ------------------------------------ |
+| Release        | En progreso | PR de lanzamiento aprobada, checks verdes y environment protegido | Ejecucion de GitHub Actions          |
+| Staging        | Bloqueado   | Proyecto o branch de Supabase separado de produccion              | Referencia del proyecto y prueba RLS |
+| Privacidad     | En progreso | Completar responsable y obtener revision juridica                 | Version beta enlazada desde la app   |
+| Terminos       | En progreso | Completar condiciones comerciales y obtener revision juridica     | Version beta enlazada desde la app   |
+| Cuenta         | En progreso | Desplegar y verificar la funcion de eliminacion en staging        | Implementacion y E2E local           |
+| Sincronizacion | En progreso | Aplicar migracion en staging y probar dos dispositivos            | Funcion atomica y pruebas unitarias  |
+| Correo         | Pendiente   | SMTP propio con SPF, DKIM y DMARC                                 | Prueba de entrega                    |
+| Abuso          | Pendiente   | CAPTCHA y limites de intentos en alta, acceso y recuperacion      | Prueba automatizada                  |
+| Recuperacion   | Pendiente   | Backup y restauracion probados con tiempo objetivo definido       | Acta de simulacro                    |
+| Dominio        | Pendiente   | Dominio, correo de soporte y URLs de Auth verificados             | DNS y redireccion probados           |
+| Soporte        | Pendiente   | Canal, horario y procedimiento de incidentes                      | Documento operativo                  |
 
 ## Privacidad y datos
 
