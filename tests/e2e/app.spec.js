@@ -1,17 +1,75 @@
 import { expect, test } from "@playwright/test";
+import { createClient } from "@supabase/supabase-js";
+import { Buffer } from "node:buffer";
 
 const externalBaseURL = process.env.PLAYWRIGHT_BASE_URL;
 const testEmail = process.env.E2E_AUTH_EMAIL || "florencia@example.com";
 const testPassword = process.env.E2E_AUTH_PASSWORD || "impulsox-test-2026";
+const secondaryEmail = process.env.E2E_AUTH_SECONDARY_EMAIL || "otra-persona@example.com";
+const secondaryPassword = process.env.E2E_AUTH_SECONDARY_PASSWORD || testPassword;
+const supabaseUrl = process.env.E2E_SUPABASE_URL;
+const supabaseKey = process.env.E2E_SUPABASE_PUBLISHABLE_KEY;
+const expectedCommit = process.env.E2E_EXPECTED_COMMIT;
+const requiresRemoteAuth = process.env.E2E_REQUIRE_AUTH === "true";
 const canAuthenticate =
   !externalBaseURL || Boolean(process.env.E2E_AUTH_EMAIL && process.env.E2E_AUTH_PASSWORD);
 
-async function signIn(page, email = testEmail) {
+if (
+  requiresRemoteAuth &&
+  (!externalBaseURL ||
+    !process.env.E2E_AUTH_EMAIL ||
+    !process.env.E2E_AUTH_PASSWORD ||
+    !process.env.E2E_AUTH_SECONDARY_EMAIL ||
+    !process.env.E2E_AUTH_SECONDARY_PASSWORD ||
+    !supabaseUrl ||
+    !supabaseKey)
+) {
+  throw new Error(
+    "Release E2E requires its base URL, two technical accounts and the public Supabase client configuration.",
+  );
+}
+
+async function resetTechnicalAccount(email, password) {
+  const client = createClient(supabaseUrl, supabaseKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  });
+  const { data, error: authError } = await client.auth.signInWithPassword({ email, password });
+  if (authError) throw authError;
+
+  const { error: deleteError } = await client
+    .from("user_states")
+    .delete()
+    .eq("user_id", data.user.id);
+  if (deleteError) throw deleteError;
+
+  await client.auth.signOut();
+}
+
+test.beforeAll(async () => {
+  if (!requiresRemoteAuth) return;
+
+  await resetTechnicalAccount(testEmail, testPassword);
+  await resetTechnicalAccount(secondaryEmail, secondaryPassword);
+});
+
+async function signIn(page, email = testEmail, password = testPassword) {
   await page.locator("#introLoginButton").click();
   await page.getByLabel("Correo").fill(email);
-  await page.getByLabel("Clave", { exact: true }).fill(testPassword);
+  await page.getByLabel("Clave", { exact: true }).fill(password);
   await page.locator("#authSubmitButton").click();
   await expect(page.locator(".app-shell")).not.toHaveAttribute("inert", "");
+}
+
+async function signOut(page) {
+  await page.locator("#profileButton").click();
+  await page.getByRole("button", { name: "Cerrar sesión", exact: true }).click();
+}
+
+function navigationTab(page, name) {
+  return page.locator(".tabs").getByRole("tab", { name, exact: true });
 }
 
 test("shows a clean welcome before asking for account details", async ({ page }) => {
@@ -57,6 +115,7 @@ test("opens the chosen form and returns to the welcome", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "Crear cuenta", exact: true })).toBeVisible();
   await expect(page.getByLabel("Nombre de usuario")).toBeVisible();
   await expect(page.getByLabel("Repetir clave")).toBeVisible();
+  await expect(page.locator("#authLegalAcceptance")).toBeVisible();
 });
 
 test("serves a valid installable manifest", async ({ request }) => {
@@ -65,6 +124,24 @@ test("serves a valid installable manifest", async ({ request }) => {
   const manifest = await response.json();
   expect(manifest.name).toBe("IMPULSOX");
   expect(manifest.icons.some((icon) => icon.sizes === "512x512")).toBe(true);
+});
+
+test("serves verifiable release metadata", async ({ request }) => {
+  const response = await request.get("/version.json", {
+    headers: {
+      "Cache-Control": "no-cache",
+    },
+  });
+  expect(response.ok()).toBe(true);
+
+  const metadata = await response.json();
+  expect(metadata.application).toBe("IMPULSOX");
+  expect(metadata.version).toMatch(/^\d+\.\d+\.\d+$/);
+  expect(metadata.commit).toMatch(/^(local|[0-9a-f]{7,40})$/);
+
+  if (expectedCommit) {
+    expect(metadata.commit).toBe(expectedCommit);
+  }
 });
 
 test.describe("authenticated experience", () => {
@@ -86,7 +163,7 @@ test.describe("authenticated experience", () => {
     ];
 
     for (const [tab, heading] of sections) {
-      await page.getByRole("tab", { name: tab, exact: true }).click();
+      await navigationTab(page, tab).click();
       await expect(page.locator("#sectionTitle")).toHaveText(heading);
     }
   });
@@ -96,13 +173,13 @@ test.describe("authenticated experience", () => {
 
     await expect(page.locator(".app-shell")).not.toHaveAttribute("inert", "");
     await expect(page.locator("#sectionTitle")).toBeFocused();
-    await expect(page.getByRole("tab")).toHaveCount(6);
+    await expect(page.locator(".tabs").getByRole("tab")).toHaveCount(6);
   });
 
   test("persists theme and user data after reload", async ({ page }) => {
     await page.locator(".theme-switch").click();
     await expect(page.locator("#themeToggle")).toBeChecked();
-    await page.getByRole("tab", { name: "Habitos", exact: true }).click();
+    await navigationTab(page, "Habitos").click();
     await page.locator("#habitName").fill("Dormir ocho horas");
     await page.getByRole("button", { name: "Agregar habito" }).click();
     await expect(
@@ -111,26 +188,52 @@ test.describe("authenticated experience", () => {
 
     await page.reload();
     await expect(page.locator("body")).toHaveAttribute("data-theme", "dark");
-    await page.getByRole("tab", { name: "Habitos", exact: true }).click();
+    await navigationTab(page, "Habitos").click();
     await expect(
       page.locator("#habitsPanel").getByText("Dormir ocho horas", { exact: true }),
     ).toBeVisible();
   });
 
   test("celebrates the water goal and records history", async ({ page }) => {
-    await page.getByRole("tab", { name: "Agua", exact: true }).click();
+    await navigationTab(page, "Agua").click();
     await page.locator("#waterGoalInput").fill("250");
     await page.getByRole("button", { name: "Actualizar objetivo" }).click();
     await page.getByRole("button", { name: "+250 ml", exact: true }).click();
 
     await expect(page.locator(".water-meter")).toHaveClass(/goal-celebrating/);
     await expect(page.locator("#waterAmount")).toHaveText("250 ml");
-    await page.getByRole("tab", { name: "Progreso", exact: true }).click();
+    await navigationTab(page, "Progreso").click();
     await expect(page.locator("#historyList .history-day").first()).toBeVisible();
   });
 
+  test("shows visual and didactic guides for training routines", async ({ page }) => {
+    await navigationTab(page, "Entrenamiento").click();
+
+    const routine = page.locator(".training-routine-card").filter({ hasText: "Piernas y gluteos" });
+    await expect(routine).toBeVisible();
+    await expect(routine).toHaveAttribute("data-category", "lower");
+    await expect(routine.locator(".routine-visual")).toHaveCSS(
+      "background-image",
+      /exercise-guide-sheet/,
+    );
+    await routine.getByRole("button", { name: "Ver guia", exact: true }).click();
+
+    await expect(routine.getByRole("heading", { name: "Guia de movimientos" })).toBeVisible();
+    await expect(routine).toContainText("Sentadillas 4x12");
+    await expect(routine).toContainText("Manten el pecho firme");
+    await expect(
+      routine.getByRole("button", { name: "Ocultar guia", exact: true }),
+    ).toHaveAttribute("aria-expanded", "true");
+
+    const dimensions = await page.evaluate(() => ({
+      clientWidth: document.documentElement.clientWidth,
+      scrollWidth: document.documentElement.scrollWidth,
+    }));
+    expect(dimensions.scrollWidth).toBeLessThanOrEqual(dimensions.clientWidth + 1);
+  });
+
   test("counts the complete seven-day window in weekly goals", async ({ page }) => {
-    await page.getByRole("tab", { name: "Progreso", exact: true }).click();
+    await navigationTab(page, "Progreso").click();
 
     const waterGoal = page.locator(".goal-card").filter({ hasText: "Agua" });
     const foodGoal = page.locator(".goal-card").filter({ hasText: "Alimentacion" });
@@ -138,21 +241,142 @@ test.describe("authenticated experience", () => {
     await expect(foodGoal.locator("strong")).toHaveText("0/7");
   });
 
-  test("offers undo after resetting today's data", async ({ page }) => {
-    await page.locator("#dailyNote").fill("Hoy tuve mucha energia");
-    page.once("dialog", (dialog) => dialog.accept());
-    await page.getByRole("button", { name: "Reiniciar dia", exact: true }).click();
+  test("plans today and tomorrow without a manual reset", async ({ page }) => {
+    await expect(page.getByRole("button", { name: "Reiniciar dia" })).toHaveCount(0);
 
-    await expect(page.locator("#dailyNote")).toHaveValue("");
-    await expect(page.locator(".app-status")).toContainText("El dia fue reiniciado.");
-    await page.getByRole("button", { name: "Deshacer", exact: true }).click();
+    await page.locator("#plannerTaskTitle").fill("Revisar agenda");
+    await page.locator("#plannerTaskTime").fill("8 am");
+    await page.locator("#plannerSubmitButton").click();
+    const todayTask = page.locator("#plannerList .item").filter({ hasText: "Revisar agenda" });
+    await todayTask.locator(".check-button").click();
+    await expect(todayTask).toHaveCount(0);
+    await expect(page.locator("#plannerList")).toContainText("Completaste todas las tareas");
 
-    await expect(page.locator("#dailyNote")).toHaveValue("Hoy tuve mucha energia");
-    await expect(page.locator(".app-status")).toContainText("Recuperamos todos los datos del dia.");
-    await page.getByRole("tab", { name: "Progreso", exact: true }).click();
+    await page.locator("#plannerTomorrowButton").click();
+    await page.locator("#plannerTaskTitle").fill("Preparar ropa de entrenamiento");
+    await page.locator("#plannerTaskTime").fill("9 pm");
+    await page.locator("#plannerSubmitButton").click();
+    const tomorrowTask = page
+      .locator("#plannerList .item")
+      .filter({ hasText: "Preparar ropa de entrenamiento" });
+    await expect(tomorrowTask).toContainText("Hora 21:00");
+    await expect(tomorrowTask.locator(".check-button")).toBeDisabled();
+
+    await navigationTab(page, "Progreso").click();
+    await expect(page.locator("#historyList .history-day")).toHaveCount(1);
+    await navigationTab(page, "Hoy").click();
+    await page.reload();
+    await page.locator("#plannerTomorrowButton").click();
     await expect(
-      page.getByRole("button", { name: "Recuperar ultimo cambio", exact: true }),
+      page.locator("#plannerList").getByText("Preparar ropa de entrenamiento", { exact: true }),
     ).toBeVisible();
+  });
+
+  test("removes completed habits from today while preserving streak and history", async ({
+    page,
+  }) => {
+    const habitName = "Tomar agua al despertar";
+    await page.locator(".theme-switch").click();
+    await expect(page.locator("#themeToggle")).toBeChecked();
+    const checklistHabit = page.locator("#todayChecklist .item").filter({ hasText: habitName });
+    await expect(checklistHabit).toBeVisible();
+    await checklistHabit.locator(".check-button").click();
+
+    await expect(checklistHabit).toHaveCount(0);
+    await expect(page.locator(".app-status")).toContainText(`Completaste "${habitName}"`);
+    await expect(page.locator(".app-status-action")).toHaveCSS(
+      "background-color",
+      "rgb(244, 247, 245)",
+    );
+    await expect(page.locator(".app-status-action")).toHaveCSS("color", "rgb(8, 16, 12)");
+
+    await navigationTab(page, "Habitos").click();
+    const managedHabit = page.locator("#habitList .item").filter({ hasText: habitName });
+    await expect(managedHabit).toContainText("Racha 1");
+
+    await navigationTab(page, "Progreso").click();
+    await expect(page.locator("#historyDetail")).toContainText("Habitos realizados:");
+    await expect(page.locator("#historyDetail")).toContainText(habitName);
+  });
+
+  test("personalizes the profile with a name and photo", async ({ page }) => {
+    await page.locator("#profileButton").click();
+    await expect(page.locator("#profileDialog")).toBeVisible();
+    await page.locator("#profileDisplayName").fill("Flor Inocencio");
+    await page.locator("#profilePhotoInput").setInputFiles({
+      name: "perfil.png",
+      mimeType: "image/png",
+      buffer: Buffer.from(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Z2S8AAAAASUVORK5CYII=",
+        "base64",
+      ),
+    });
+    await expect(page.locator("#profileStatus")).toContainText("Foto lista");
+    await page.locator("#profileSaveButton").click();
+
+    await expect(page.locator("#accountName")).toHaveText("Flor Inocencio");
+    await expect(page.locator("#profileAvatarImage")).toBeVisible();
+    await page.reload();
+    await expect(page.locator("#accountName")).toHaveText("Flor Inocencio");
+    await expect(page.locator("#profileAvatarImage")).toBeVisible();
+  });
+
+  test("adjusts the profile photo crop before saving", async ({ page }) => {
+    await page.locator("#profileButton").click();
+    const photoBytes = await page.evaluate(async () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = 400;
+      canvas.height = 240;
+      const context = canvas.getContext("2d");
+      context.fillStyle = "#d74b4b";
+      context.fillRect(0, 0, 200, 240);
+      context.fillStyle = "#3776d0";
+      context.fillRect(200, 0, 200, 240);
+      const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
+      return [...new Uint8Array(await blob.arrayBuffer())];
+    });
+    await page.locator("#profilePhotoInput").setInputFiles({
+      name: "encuadre.png",
+      mimeType: "image/png",
+      buffer: Buffer.from(photoBytes),
+    });
+
+    await expect(page.locator("#profileCropControls")).toBeVisible();
+    const initialCrop = await page
+      .locator("#profileCropCanvas")
+      .evaluate((canvas) => canvas.toDataURL());
+    await page.locator("#profileCropZoom").fill("2");
+    const zoomedCrop = await page
+      .locator("#profileCropCanvas")
+      .evaluate((canvas) => canvas.toDataURL());
+    expect(zoomedCrop).not.toBe(initialCrop);
+
+    const cropArea = await page.locator("#profileCropViewport").boundingBox();
+    await page.mouse.move(cropArea.x + cropArea.width / 2, cropArea.y + cropArea.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(cropArea.x + cropArea.width * 0.8, cropArea.y + cropArea.height / 2);
+    await page.mouse.up();
+    const movedCrop = await page
+      .locator("#profileCropCanvas")
+      .evaluate((canvas) => canvas.toDataURL());
+    expect(movedCrop).not.toBe(zoomedCrop);
+
+    await page.locator("#profileSaveButton").click();
+    await expect(page.locator("#profileAvatarImage")).toBeVisible();
+  });
+
+  test("explains how to recover from a photo that cannot be decoded", async ({ page }) => {
+    await page.locator("#profileButton").click();
+    await page.locator("#profilePhotoInput").setInputFiles({
+      name: "foto-danada.jpg",
+      mimeType: "image/jpeg",
+      buffer: Buffer.from("not-a-real-photo"),
+    });
+
+    await expect(page.locator("#profileStatus")).toContainText(
+      'No pudimos abrir "foto-danada.jpg"',
+    );
+    await expect(page.locator("#profilePhotoInput")).toBeEnabled();
   });
 
   test("isolates corrupt local data and explains the recovery", async ({ page }) => {
@@ -174,28 +398,49 @@ test.describe("authenticated experience", () => {
   });
 
   test("keeps each account's data separate", async ({ page }) => {
-    await page.getByRole("tab", { name: "Habitos", exact: true }).click();
+    await navigationTab(page, "Habitos").click();
     await page.locator("#habitName").fill("Dato privado de la cuenta A");
     await page.getByRole("button", { name: "Agregar habito" }).click();
-    await page.getByRole("button", { name: "Salir", exact: true }).click();
+    await signOut(page);
 
-    await signIn(page, "otra-persona@example.com");
-    await page.getByRole("tab", { name: "Habitos", exact: true }).click();
+    await signIn(page, secondaryEmail, secondaryPassword);
+    await navigationTab(page, "Habitos").click();
     await expect(
       page.locator("#habitsPanel").getByText("Dato privado de la cuenta A", { exact: true }),
     ).toHaveCount(0);
 
-    await page.getByRole("button", { name: "Salir", exact: true }).click();
+    await signOut(page);
     await signIn(page);
-    await page.getByRole("tab", { name: "Habitos", exact: true }).click();
+    await navigationTab(page, "Habitos").click();
     await expect(
       page.locator("#habitsPanel").getByText("Dato privado de la cuenta A", { exact: true }),
     ).toBeVisible();
+
+    if (requiresRemoteAuth) {
+      const verificationClient = createClient(supabaseUrl, supabaseKey, {
+        auth: { autoRefreshToken: false, persistSession: false },
+      });
+      const { error: authError } = await verificationClient.auth.signInWithPassword({
+        email: testEmail,
+        password: testPassword,
+      });
+      if (authError) throw authError;
+      const { data: remoteState, error: stateError } = await verificationClient
+        .from("user_states")
+        .select("revision, state")
+        .single();
+      if (stateError) throw stateError;
+      expect(remoteState.revision).toBeGreaterThan(0);
+      expect(
+        remoteState.state.habits.some((habit) => habit.name === "Dato privado de la cuenta A"),
+      ).toBe(true);
+      await verificationClient.auth.signOut();
+    }
   });
 
   test("has no horizontal page overflow", async ({ page }) => {
     for (const name of ["Hoy", "Habitos", "Entrenamiento", "Alimentacion", "Agua", "Progreso"]) {
-      await page.getByRole("tab", { name, exact: true }).click();
+      await navigationTab(page, name).click();
       const dimensions = await page.evaluate(() => ({
         clientWidth: document.documentElement.clientWidth,
         scrollWidth: document.documentElement.scrollWidth,
@@ -216,9 +461,29 @@ test("creates an account without persisting the password in browser storage", as
   await page.getByLabel("Correo").fill("nueva@example.com");
   await page.getByLabel("Clave", { exact: true }).fill(testPassword);
   await page.getByLabel("Repetir clave").fill(testPassword);
+  await page.locator("#authLegalAcceptance").check();
   await page.locator("#authSubmitButton").click();
 
   await expect(page.locator(".app-shell")).not.toHaveAttribute("inert", "");
   const localStorageValues = await page.evaluate(() => Object.values(globalThis.localStorage));
   expect(localStorageValues.join(" ")).not.toContain(testPassword);
+});
+
+test("deletes a local test account and its cached progress", async ({ page }) => {
+  test.skip(
+    Boolean(externalBaseURL),
+    "Account deletion is destructive and runs only in isolation.",
+  );
+  await page.goto("/");
+  await signIn(page, "eliminar@example.com", testPassword);
+  await page.locator("#profileButton").click();
+  page.on("dialog", (dialog) => dialog.accept("ELIMINAR"));
+  await page.locator("#deleteAccountButton").click();
+
+  await expect(page.locator(".app-shell")).toHaveAttribute("inert", "");
+  await expect(page.locator("#introScreen")).toBeVisible();
+  const stateKeys = await page.evaluate(() =>
+    Object.keys(globalThis.localStorage).filter((key) => key.startsWith("impulsox-state:")),
+  );
+  expect(stateKeys).toEqual([]);
 });

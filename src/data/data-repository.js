@@ -22,4 +22,20 @@ export class DataRepository {
   setPreference(_name, _value) {
     throw new Error("DataRepository.setPreference must be implemented");
   }
+
+  clearUserData() {
+    throw new Error("DataRepository.clearUserData must be implemented");
+  }
+
+  storeProfileAvatar(_dataUrl) {
+    throw new Error("DataRepository.storeProfileAvatar must be implemented");
+  }
+
+  loadProfileAvatar(_path) {
+    throw new Error("DataRepository.loadProfileAvatar must be implemented");
+  }
+
+  removeProfileAvatar(_path) {
+    throw new Error("DataRepository.removeProfileAvatar must be implemented");
+  }
 }

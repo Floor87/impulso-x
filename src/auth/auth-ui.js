@@ -1,3 +1,5 @@
+import { getLegalAcceptance } from "../config/legal.js";
+
 export function createAuthUi({ root, onSignIn, onSignUp, onResetRequest, onPasswordUpdate }) {
   const elements = {
     introActions: root.querySelector("#introActions"),
@@ -21,6 +23,8 @@ export function createAuthUi({ root, onSignIn, onSignUp, onResetRequest, onPassw
     confirmation: root.querySelector("#authPasswordConfirmation"),
     passwordVisibilityField: root.querySelector("#passwordVisibilityField"),
     passwordVisibility: root.querySelector("#passwordVisibility"),
+    legalField: root.querySelector("#authLegalField"),
+    legalAcceptance: root.querySelector("#authLegalAcceptance"),
     forgot: root.querySelector("#forgotPasswordButton"),
     back: root.querySelector("#backToLoginButton"),
     submit: root.querySelector("#authSubmitButton"),
@@ -53,7 +57,11 @@ export function createAuthUi({ root, onSignIn, onSignUp, onResetRequest, onPassw
       if (mode === "login") {
         result = await onSignIn(credentials());
       } else if (mode === "signup") {
-        result = await onSignUp({ ...credentials(), name: elements.name.value.trim() });
+        result = await onSignUp({
+          ...credentials(),
+          name: elements.name.value.trim(),
+          legalAcceptance: getLegalAcceptance(),
+        });
       } else if (mode === "forgot") {
         result = await onResetRequest(elements.email.value.trim());
       } else {
@@ -88,6 +96,8 @@ export function createAuthUi({ root, onSignIn, onSignUp, onResetRequest, onPassw
     elements.confirmationField.hidden = !signup && !update;
     elements.confirmation.required = signup || update;
     elements.passwordVisibilityField.hidden = !usesPassword;
+    elements.legalField.hidden = !signup;
+    elements.legalAcceptance.required = signup;
     elements.forgot.hidden = mode !== "login";
     elements.back.hidden = !forgot;
     elements.loginMode.classList.toggle("active", mode === "login");

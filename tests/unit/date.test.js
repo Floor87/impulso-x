@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  getAdjacentDateKey,
   getDateKeyFromDate,
   getIsoWeekdayFromKey,
   getLocalDateKey,
@@ -31,5 +32,11 @@ describe("date domain", () => {
       "2026-07-18",
     ]);
     expect(getDateKeyFromDate(new Date(2026, 0, 1))).toBe("2026-01-01");
+  });
+
+  it("moves planning dates across month and year boundaries", () => {
+    expect(getAdjacentDateKey("2026-07-31", 1)).toBe("2026-08-01");
+    expect(getAdjacentDateKey("2026-01-01", -1)).toBe("2025-12-31");
+    expect(() => getAdjacentDateKey("fecha-invalida", 1)).toThrow("invalido");
   });
 });

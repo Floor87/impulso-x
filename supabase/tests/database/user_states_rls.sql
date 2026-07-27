@@ -40,12 +40,12 @@ select results_eq(
 );
 
 select lives_ok(
-  $$update public.user_states set state = '{"owner":"a","updated":true}' where user_id = '00000000-0000-0000-0000-000000000001'$$,
+  $$update public.user_states set state = '{"owner":"a","updated":true}', revision = revision + 1 where user_id = '00000000-0000-0000-0000-000000000001'$$,
   'user A can update their state'
 );
 
 select lives_ok(
-  $$update public.user_states set state = '{"owner":"a"}' where user_id = '00000000-0000-0000-0000-000000000002'$$,
+  $$update public.user_states set state = '{"owner":"a"}', revision = revision + 1 where user_id = '00000000-0000-0000-0000-000000000002'$$,
   'updating user B is filtered without leaking the row'
 );
 

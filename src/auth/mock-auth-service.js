@@ -39,6 +39,10 @@ export class MockAuthService {
     this.emit("SIGNED_OUT", null);
   }
 
+  async deleteAccount() {
+    await this.signOut();
+  }
+
   createSession(email, displayName) {
     const session = {
       user: {

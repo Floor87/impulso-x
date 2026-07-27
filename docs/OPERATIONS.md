@@ -31,6 +31,20 @@ debe contener la URL de preview exacta; este archivo no conserva URLs efimeras.
 Consultar estado del proyecto, migraciones y advisors desde el panel o la CLI. Los
 identificadores y secretos de entornos no se escriben aqui.
 
+Antes de modificar el esquema:
+
+```bash
+supabase migration list --linked
+```
+
+Una version remota ausente en `supabase/migrations` es un incidente de deriva. Se
+recupera su contenido exacto desde el historial y se integra antes de crear otra
+migracion. No se repara el historial ni se vuelve a ejecutar la version remota.
+
+Las migraciones y Edge Functions se publican mediante `Supabase release`. El
+workflow muestra primero el plan, usa secrets del environment elegido y requiere
+aprobacion de la propietaria para produccion.
+
 ## Incidentes
 
 Los estados de servicio, commits adelantados y resultados de despliegue se
