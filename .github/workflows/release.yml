@@ -17,10 +17,20 @@ env:
   VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
   VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
   VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+  PRODUCTION_URL: ${{ vars.PRODUCTION_URL || 'https://impulso-x.vercel.app' }}
 
 jobs:
+  source:
+    name: Validate release source
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Require main
+        run: test "$GITHUB_REF" = "refs/heads/main"
+
   quality:
     name: Release quality gate
+    needs: source
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -31,7 +41,7 @@ jobs:
           run_install: false
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
@@ -40,6 +50,7 @@ jobs:
 
   database:
     name: Release database gate
+    needs: source
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -67,18 +78,33 @@ jobs:
           run_install: false
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec playwright install --with-deps chromium
-      - name: Validate deployment credentials
+      - name: Validate deployment and E2E credentials
+        env:
+          E2E_AUTH_EMAIL: ${{ secrets.E2E_AUTH_EMAIL }}
+          E2E_AUTH_PASSWORD: ${{ secrets.E2E_AUTH_PASSWORD }}
+          E2E_AUTH_SECONDARY_EMAIL: ${{ secrets.E2E_AUTH_SECONDARY_EMAIL }}
+          E2E_AUTH_SECONDARY_PASSWORD: ${{ secrets.E2E_AUTH_SECONDARY_PASSWORD }}
+          E2E_SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
+          E2E_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.E2E_SUPABASE_PUBLISHABLE_KEY }}
         run: |
           test -n "$VERCEL_TOKEN"
           test -n "$VERCEL_ORG_ID"
           test -n "$VERCEL_PROJECT_ID"
+          test -n "$E2E_AUTH_EMAIL"
+          test -n "$E2E_AUTH_PASSWORD"
+          test -n "$E2E_AUTH_SECONDARY_EMAIL"
+          test -n "$E2E_AUTH_SECONDARY_PASSWORD"
+          test -n "$E2E_SUPABASE_URL"
+          test -n "$E2E_SUPABASE_PUBLISHABLE_KEY"
       - name: Pull production configuration
         run: pnpm dlx "vercel@${VERCEL_CLI_VERSION}" pull --yes --environment=production --token="$VERCEL_TOKEN"
       - name: Build production candidate
+        env:
+          IMPULSOX_COMMIT_SHA: ${{ github.sha }}
         run: pnpm dlx "vercel@${VERCEL_CLI_VERSION}" build --prod --token="$VERCEL_TOKEN"
       - name: Deploy candidate without production domains
         id: deploy
@@ -89,6 +115,14 @@ jobs:
       - name: Test deployed candidate
         env:
           PLAYWRIGHT_BASE_URL: ${{ steps.deploy.outputs.url }}
+          E2E_AUTH_EMAIL: ${{ secrets.E2E_AUTH_EMAIL }}
+          E2E_AUTH_PASSWORD: ${{ secrets.E2E_AUTH_PASSWORD }}
+          E2E_AUTH_SECONDARY_EMAIL: ${{ secrets.E2E_AUTH_SECONDARY_EMAIL }}
+          E2E_AUTH_SECONDARY_PASSWORD: ${{ secrets.E2E_AUTH_SECONDARY_PASSWORD }}
+          E2E_SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
+          E2E_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.E2E_SUPABASE_PUBLISHABLE_KEY }}
+          E2E_EXPECTED_COMMIT: ${{ github.sha }}
+          E2E_REQUIRE_AUTH: "true"
         run: pnpm test:e2e
       - name: Upload Playwright report on failure
         if: failure()
@@ -118,8 +152,17 @@ jobs:
           run_install: false
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
       - name: Promote without rebuilding
         run: pnpm dlx "vercel@${VERCEL_CLI_VERSION}" promote "${{ needs.candidate.outputs.url }}" --yes --token="$VERCEL_TOKEN"
       - name: Verify promoted deployment
-        run: curl --fail --retry 5 --retry-all-errors --max-time 20 "${{ needs.candidate.outputs.url }}/manifest.webmanifest"
+        run: |
+          base_url="${PRODUCTION_URL%/}"
+          query="release=${GITHUB_SHA}"
+          curl --fail --retry 10 --retry-delay 3 --retry-all-errors --max-time 20 "${base_url}/?${query}" > /dev/null
+          curl --fail --retry 10 --retry-delay 3 --retry-all-errors --max-time 20 "${base_url}/manifest.webmanifest?${query}" > /tmp/manifest.json
+          curl --fail --retry 10 --retry-delay 3 --retry-all-errors --max-time 20 "${base_url}/icons/icon-192.png?${query}" > /dev/null
+          curl --fail --retry 10 --retry-delay 3 --retry-all-errors --max-time 20 "${base_url}/version.json?${query}" > /tmp/version.json
+          node -e 'const fs = require("node:fs"); const value = JSON.parse(fs.readFileSync("/tmp/version.json", "utf8")); if (value.commit !== process.env.GITHUB_SHA) { throw new Error(`Expected ${process.env.GITHUB_SHA}, received ${value.commit}`); }'
+      - name: Publish production verification
+        run: echo "Verified ${PRODUCTION_URL} at commit ${GITHUB_SHA}" >> "$GITHUB_STEP_SUMMARY"
