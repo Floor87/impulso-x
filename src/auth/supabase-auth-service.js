@@ -26,12 +26,16 @@ export class SupabaseAuthService {
     return data.session;
   }
 
-  async signUp({ name, email, password, redirectTo }) {
+  async signUp({ name, email, password, redirectTo, legalAcceptance }) {
     const { data, error } = await this.client.auth.signUp({
       email,
       password,
       options: {
-        data: { display_name: name },
+        data: {
+          display_name: name,
+          terms_version: legalAcceptance.termsVersion,
+          privacy_version: legalAcceptance.privacyVersion,
+        },
         emailRedirectTo: redirectTo,
       },
     });
@@ -52,6 +56,14 @@ export class SupabaseAuthService {
   async signOut() {
     const { error } = await this.client.auth.signOut();
     if (error) throw error;
+  }
+
+  async deleteAccount() {
+    const { error } = await this.client.functions.invoke("delete-account", {
+      method: "POST",
+    });
+    if (error) throw error;
+    await this.client.auth.signOut({ scope: "local" });
   }
 }
 

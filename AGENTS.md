@@ -74,6 +74,12 @@ git worktree add ../impulsox-123 -b agent/123-habit-history origin/main
 - Toda tabla expuesta por Supabase habilita RLS y limita filas con `auth.uid()`.
 - Las migraciones son inmutables una vez aplicadas. Se usa expandir, migrar,
   verificar y retirar; una operacion destructiva se entrega por separado.
+- Antes de crear una migracion se compara el historial local con cada entorno
+  remoto. Si existe una version remota ausente en Git, se detiene el cambio y se
+  recupera esa version exacta antes de continuar.
+- Ningun agente aplica DDL desde el panel, SQL Editor, MCP o una rama de trabajo.
+  Staging y produccion reciben migraciones unicamente mediante el workflow
+  protegido `Supabase release`, con el issue y la aprobacion correspondientes.
 - Entradas importadas, formularios y parametros externos deben validarse antes de
   persistirse o mostrarse.
 
@@ -124,6 +130,9 @@ pnpm test:e2e
   promoverse para rollback inmediato.
 - Ningun agente promueve produccion, cambia dominios o aplica migraciones
   destructivas sin aprobacion expresa de `@Floor87`.
+- Las migraciones no destructivas tambien se aplican por el workflow protegido;
+  la diferencia es el plan de rollback, no un permiso para modificar la base por
+  fuera de Git.
 
 ## 9. Conflictos y entrega
 

@@ -136,6 +136,33 @@ export class LocalDataRepository extends DataRepository {
     this.writeItem(`impulsox-preference-${name}`, String(value));
   }
 
+  clearUserData() {
+    [
+      this.stateStorageKey,
+      this.recoveryStorageKey,
+      this.corruptStateStorageKey,
+      `impulsox-preference-remote-pending-${encodeURIComponent(this.userId || "")}`,
+      `impulsox-preference-remote-revision-${encodeURIComponent(this.userId || "")}`,
+    ].forEach((key) => this.deleteItem(key));
+    if (this.userId && this.readItem(USER_STATE_OWNER_STORAGE_KEY) === this.userId) {
+      this.deleteItem(USER_STATE_OWNER_STORAGE_KEY);
+    }
+  }
+
+  async storeProfileAvatar(dataUrl) {
+    return {
+      avatarPath: "",
+      avatarDataUrl: String(dataUrl || ""),
+      displayUrl: String(dataUrl || ""),
+    };
+  }
+
+  async loadProfileAvatar() {
+    return "";
+  }
+
+  async removeProfileAvatar() {}
+
   preserveCorruptState(source) {
     const payload = {
       capturedAt: new Date().toISOString(),
@@ -185,6 +212,18 @@ export class LocalDataRepository extends DataRepository {
       throw repositoryError(
         "storage-write-failed",
         "El navegador no pudo guardar los cambios. El almacenamiento puede estar lleno o bloqueado.",
+        cause,
+      );
+    }
+  }
+
+  deleteItem(key) {
+    try {
+      this.storage.removeItem(key);
+    } catch (cause) {
+      throw repositoryError(
+        "storage-delete-failed",
+        "El navegador no permitio eliminar los datos guardados.",
         cause,
       );
     }

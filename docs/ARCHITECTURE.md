@@ -30,6 +30,10 @@ repository.load();
 repository.save(state);
 repository.export();
 repository.import(serializedState);
+repository.storeProfileAvatar(dataUrl);
+repository.loadProfileAvatar(path);
+repository.removeProfileAvatar(path);
+repository.clearUserData();
 ```
 
 `LocalDataRepository` mantiene compatibilidad con `impulsox-state`, migra la
@@ -41,9 +45,16 @@ accede directamente a `localStorage`.
 `SupabaseDataRepository` usa el mismo contrato para sincronizar dispositivos.
 Mantiene una copia local por usuario para apertura inmediata y trabajo ante una
 falla de red; al iniciar sesion carga la copia remota y cada cambio se agrupa
-antes de actualizar `public.user_states`. Si una sincronizacion falla, conserva
-el cambio local, lo marca como pendiente y lo envia antes de aceptar una copia
-remota cuando recupera conexion.
+antes de actualizar `public.user_states`. Cada escritura usa una revision
+monotonica y una funcion atomica: una copia obsoleta se conserva como conflicto
+local en lugar de sobrescribir a otro dispositivo. Si una sincronizacion falla,
+conserva el cambio local, lo marca como pendiente y lo envia antes de aceptar una
+copia remota cuando recupera conexion.
+
+Las fotos de perfil remotas viven en el bucket privado `profile-avatars`, bajo
+una carpeta derivada de `user.id`. El estado guarda solo la ruta. Fotos heredadas
+como Data URL se migran al iniciar sesion; el adaptador local conserva la Data URL
+cuando no existe Supabase.
 
 ## Autenticacion
 
@@ -53,6 +64,11 @@ remota cuando recupera conexion.
   recuperacion de clave mediante PKCE.
 - `display_name` es metadato de presentacion. Las reglas de autorizacion usan
   exclusivamente `user.id`.
+- Las versiones legales aceptadas se envian como evidencia de alta y un trigger
+  guarda un registro inmutable con hora del servidor. No se usan para autorizar.
+- La eliminacion de cuenta se ejecuta en una Edge Function autenticada. El
+  navegador nunca recibe `service_role`; la funcion elimina Storage antes de
+  eliminar Auth y deja que las claves foraneas limpien las tablas de usuario.
 - `MockAuthService` existe solo en builds E2E aislados y queda excluido del build
   normal. No es un mecanismo de acceso local o de produccion.
 

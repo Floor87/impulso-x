@@ -23,7 +23,7 @@ class MemoryStorage {
 }
 
 describe("authentication", () => {
-  it("sends display name only as profile metadata during signup", async () => {
+  it("sends the display name and accepted legal versions during signup", async () => {
     const signUp = vi.fn().mockResolvedValue({
       data: { session: null, user: { id: "user-a" } },
       error: null,
@@ -35,16 +35,38 @@ describe("authentication", () => {
       email: "florencia@example.com",
       password: "clave-segura",
       redirectTo: "https://example.com/",
+      legalAcceptance: {
+        termsVersion: "2026-07-27-beta",
+        privacyVersion: "2026-07-27-beta",
+      },
     });
 
     expect(signUp).toHaveBeenCalledWith({
       email: "florencia@example.com",
       password: "clave-segura",
       options: {
-        data: { display_name: "Florencia" },
+        data: {
+          display_name: "Florencia",
+          terms_version: "2026-07-27-beta",
+          privacy_version: "2026-07-27-beta",
+        },
         emailRedirectTo: "https://example.com/",
       },
     });
+  });
+
+  it("deletes the account through the protected function and clears the local session", async () => {
+    const invoke = vi.fn().mockResolvedValue({ data: { deleted: true }, error: null });
+    const signOut = vi.fn().mockResolvedValue({ error: null });
+    const service = new SupabaseAuthService({
+      functions: { invoke },
+      auth: { signOut },
+    });
+
+    await service.deleteAccount();
+
+    expect(invoke).toHaveBeenCalledWith("delete-account", { method: "POST" });
+    expect(signOut).toHaveBeenCalledWith({ scope: "local" });
   });
 
   it("does not store passwords in the E2E authentication provider", async () => {

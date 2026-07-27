@@ -12,6 +12,7 @@ export class SupabaseDataRepository extends DataRepository {
       storage = globalThis.localStorage,
       localRepository = null,
       onSyncError = () => {},
+      onSyncStatus = () => {},
       syncDelay = DEFAULT_SYNC_DELAY,
     } = {},
   ) {
@@ -23,8 +24,11 @@ export class SupabaseDataRepository extends DataRepository {
     this.userId = String(userId);
     this.local = localRepository || new LocalDataRepository(storage, { userId: this.userId });
     this.onSyncError = onSyncError;
+    this.onSyncStatus = onSyncStatus;
     this.syncDelay = Math.max(0, Number(syncDelay) || 0);
     this.dirtyPreferenceName = `remote-pending-${encodeURIComponent(this.userId)}`;
+    this.revisionPreferenceName = `remote-revision-${encodeURIComponent(this.userId)}`;
+    this.remoteRevision = parseRevision(this.local.getPreference(this.revisionPreferenceName, "0"));
     this.notice = null;
     this.pendingState = null;
     this.syncTimer = null;
@@ -33,6 +37,7 @@ export class SupabaseDataRepository extends DataRepository {
   }
 
   async load() {
+    this.emitSyncStatus("syncing");
     let localState;
     let localLoadError = null;
     try {
@@ -45,26 +50,34 @@ export class SupabaseDataRepository extends DataRepository {
     try {
       const { data, error } = await this.client
         .from("user_states")
-        .select("schema_version, state, updated_at")
+        .select("schema_version, state, revision, updated_at")
         .eq("user_id", this.userId)
         .maybeSingle();
       if (error) throw error;
 
       if (this.hasPendingLocalChanges()) {
+        const currentRemoteRevision = parseRevision(data?.revision);
+        if (data && currentRemoteRevision !== this.remoteRevision) {
+          this.reportConflict(currentRemoteRevision);
+          return localState;
+        }
         const saved = await this.pushState(localState, { notify: false });
         if (saved) this.setPendingLocalChanges(false);
         return localState;
       }
 
       if (data?.state) {
+        this.setRemoteRevision(data.revision);
         const remoteState = normalizeState(data.state);
         this.local.save(remoteState);
         this.setPendingLocalChanges(false);
         this.clearSyncError();
+        this.emitSyncStatus("synced");
         return remoteState;
       }
 
       if (localLoadError) throw localLoadError;
+      this.setRemoteRevision(0);
       const saved = await this.pushState(localState, { notify: false });
       if (saved) this.setPendingLocalChanges(false);
       return localState;
@@ -83,6 +96,7 @@ export class SupabaseDataRepository extends DataRepository {
     const normalized = this.local.save(state);
     this.setPendingLocalChanges(true);
     this.pendingState = normalizeState(normalized);
+    this.emitSyncStatus("pending");
     this.scheduleSync();
     return normalized;
   }
@@ -120,6 +134,38 @@ export class SupabaseDataRepository extends DataRepository {
     return this.local.setPreference(name, value);
   }
 
+  clearUserData() {
+    this.pendingState = null;
+    if (this.syncTimer) globalThis.clearTimeout(this.syncTimer);
+    this.syncTimer = null;
+    this.local.clearUserData();
+  }
+
+  async storeProfileAvatar(dataUrl) {
+    const { blob, contentType, extension } = avatarDataUrlToBlob(dataUrl);
+    const avatarPath = `${this.userId}/avatar.${extension}`;
+    const { error } = await this.client.storage.from("profile-avatars").upload(avatarPath, blob, {
+      cacheControl: "3600",
+      contentType,
+      upsert: true,
+    });
+    if (error) throw createAvatarError(error, "No pudimos guardar la foto de perfil.");
+    return { avatarPath, avatarDataUrl: "", displayUrl: dataUrl };
+  }
+
+  async loadProfileAvatar(path) {
+    if (!path) return "";
+    const { data, error } = await this.client.storage.from("profile-avatars").download(path);
+    if (error) throw createAvatarError(error, "No pudimos recuperar la foto de perfil.");
+    return URL.createObjectURL(data);
+  }
+
+  async removeProfileAvatar(path) {
+    if (!path) return;
+    const { error } = await this.client.storage.from("profile-avatars").remove([path]);
+    if (error) throw createAvatarError(error, "No pudimos quitar la foto de perfil.");
+  }
+
   consumeNotice() {
     const localNotice = this.local.consumeNotice();
     const remoteNotice = this.notice;
@@ -154,6 +200,7 @@ export class SupabaseDataRepository extends DataRepository {
     const pendingState = this.pendingState;
     if (!pendingState) return true;
     this.pendingState = null;
+    this.emitSyncStatus("syncing");
 
     const saved = await this.pushState(pendingState);
     if (!saved) {
@@ -176,16 +223,20 @@ export class SupabaseDataRepository extends DataRepository {
   async pushState(state, { notify = true } = {}) {
     const normalized = normalizeState(state);
     try {
-      const { error } = await this.client.from("user_states").upsert(
-        {
-          user_id: this.userId,
-          schema_version: STATE_VERSION,
-          state: normalized,
-        },
-        { onConflict: "user_id" },
-      );
+      const { data, error } = await this.client.rpc("save_user_state", {
+        p_expected_revision: this.remoteRevision,
+        p_schema_version: STATE_VERSION,
+        p_state: normalized,
+      });
       if (error) throw error;
+      const result = Array.isArray(data) ? data[0] : data;
+      if (!result?.saved) {
+        this.reportConflict(result?.revision, notify);
+        return false;
+      }
+      this.setRemoteRevision(result.revision);
       this.clearSyncError();
+      this.emitSyncStatus("synced");
       return true;
     } catch (error) {
       this.reportSyncError(
@@ -197,9 +248,29 @@ export class SupabaseDataRepository extends DataRepository {
     }
   }
 
+  setRemoteRevision(revision) {
+    this.remoteRevision = parseRevision(revision);
+    this.local.setPreference(this.revisionPreferenceName, String(this.remoteRevision));
+  }
+
+  reportConflict(revision, notify = true) {
+    const currentRevision = parseRevision(revision);
+    const error = new Error(
+      "Hay cambios nuevos en otro dispositivo. Conservamos esta copia local para que puedas resolver el conflicto sin perder datos.",
+    );
+    error.name = "DataRepositoryError";
+    error.code = "remote-sync-conflict";
+    error.remoteRevision = currentRevision;
+    this.notice = { code: error.code, message: error.message };
+    this.emitSyncStatus("conflict");
+    if (notify && !this.syncErrorNotified) this.onSyncError(error);
+    this.syncErrorNotified = true;
+  }
+
   reportSyncError(cause, message, notify = true) {
     const error = createSyncError(cause, message);
     this.notice = { code: error.code, message: error.message };
+    this.emitSyncStatus("offline");
     if (notify && !this.syncErrorNotified) this.onSyncError(error);
     this.syncErrorNotified = true;
   }
@@ -207,12 +278,44 @@ export class SupabaseDataRepository extends DataRepository {
   clearSyncError() {
     this.syncErrorNotified = false;
   }
+
+  emitSyncStatus(status) {
+    this.onSyncStatus(status);
+  }
+}
+
+function parseRevision(value) {
+  const revision = Number(value);
+  return Number.isSafeInteger(revision) && revision >= 0 ? revision : 0;
 }
 
 function createSyncError(cause, message) {
   const error = new Error(message);
   error.name = "DataRepositoryError";
   error.code = "remote-sync-failed";
+  error.cause = cause;
+  return error;
+}
+
+function avatarDataUrlToBlob(dataUrl) {
+  const match = String(dataUrl || "").match(
+    /^data:(image\/(?:webp|jpeg|png));base64,([a-zA-Z0-9+/=]+)$/,
+  );
+  if (!match) throw createAvatarError(null, "La foto preparada no tiene un formato válido.");
+  const binary = globalThis.atob(match[2]);
+  const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
+  const contentType = match[1];
+  return {
+    blob: new Blob([bytes], { type: contentType }),
+    contentType,
+    extension: contentType === "image/jpeg" ? "jpg" : contentType.split("/")[1],
+  };
+}
+
+function createAvatarError(cause, message) {
+  const error = new Error(message);
+  error.name = "DataRepositoryError";
+  error.code = "profile-avatar-failed";
   error.cause = cause;
   return error;
 }

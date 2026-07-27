@@ -40,10 +40,15 @@ function validState(note = "Bien") {
   };
 }
 
-function createClient({ readData = null, readError = null, writeError = null } = {}) {
-  const upserts = [];
+function createClient({
+  readData = null,
+  readError = null,
+  writeError = null,
+  writeData = [{ saved: true, revision: 1, updated_at: "2026-07-27T18:00:00Z" }],
+} = {}) {
+  const calls = [];
   return {
-    upserts,
+    calls,
     from(table) {
       expect(table).toBe("user_states");
       return {
@@ -58,11 +63,11 @@ function createClient({ readData = null, readError = null, writeError = null } =
             },
           };
         },
-        async upsert(payload, options) {
-          upserts.push({ payload, options });
-          return { error: writeError };
-        },
       };
+    },
+    async rpc(name, payload) {
+      calls.push({ name, payload });
+      return { data: writeData, error: writeError };
     },
   };
 }
@@ -70,7 +75,9 @@ function createClient({ readData = null, readError = null, writeError = null } =
 describe("SupabaseDataRepository", () => {
   it("loads the remote state and keeps a local cache per user", async () => {
     const storage = new MemoryStorage();
-    const client = createClient({ readData: { state: validState("Desde la nube") } });
+    const client = createClient({
+      readData: { state: validState("Desde la nube"), revision: 7 },
+    });
     const repository = new SupabaseDataRepository(client, {
       storage,
       userId: "user-a",
@@ -83,6 +90,7 @@ describe("SupabaseDataRepository", () => {
     expect(JSON.parse(storage.getItem(`${STATE_STORAGE_KEY}:user-a`)).days["2026-07-21"].note).toBe(
       "Desde la nube",
     );
+    expect(storage.getItem("impulsox-preference-remote-revision-user-a")).toBe("7");
   });
 
   it("uploads the local state when the user has no remote row", async () => {
@@ -98,17 +106,20 @@ describe("SupabaseDataRepository", () => {
 
     await repository.load();
 
-    expect(client.upserts).toHaveLength(1);
-    expect(client.upserts[0].payload.user_id).toBe("user-a");
-    expect(client.upserts[0].payload.state.days["2026-07-21"].note).toBe("Solo local");
+    expect(client.calls).toHaveLength(1);
+    expect(client.calls[0].name).toBe("save_user_state");
+    expect(client.calls[0].payload.p_expected_revision).toBe(0);
+    expect(client.calls[0].payload.p_state.days["2026-07-21"].note).toBe("Solo local");
   });
 
   it("coalesces changes and syncs the latest saved state", async () => {
     const storage = new MemoryStorage();
     const client = createClient();
+    const onSyncStatus = vi.fn();
     const repository = new SupabaseDataRepository(client, {
       storage,
       userId: "user-a",
+      onSyncStatus,
       syncDelay: 1000,
     });
 
@@ -117,9 +128,16 @@ describe("SupabaseDataRepository", () => {
     const synced = await repository.flush();
 
     expect(synced).toBe(true);
-    expect(client.upserts).toHaveLength(1);
-    expect(client.upserts[0].payload.state.days["2026-07-21"].note).toBe("Ultimo");
+    expect(client.calls).toHaveLength(1);
+    expect(client.calls[0].payload.p_state.days["2026-07-21"].note).toBe("Ultimo");
     expect(storage.getItem("impulsox-preference-remote-pending-user-a")).toBe("false");
+    expect(storage.getItem("impulsox-preference-remote-revision-user-a")).toBe("1");
+    expect(onSyncStatus.mock.calls.map(([status]) => status)).toEqual([
+      "pending",
+      "pending",
+      "syncing",
+      "synced",
+    ]);
   });
 
   it("uploads pending local changes before accepting an older remote copy", async () => {
@@ -127,7 +145,9 @@ describe("SupabaseDataRepository", () => {
     const local = new LocalDataRepository(storage, { userId: "user-a" });
     local.save(validState("Cambio sin conexion"));
     local.setPreference("remote-pending-user-a", "true");
-    const client = createClient({ readData: { state: validState("Copia vieja") } });
+    const client = createClient({
+      readData: { state: validState("Copia vieja"), revision: 0 },
+    });
     const repository = new SupabaseDataRepository(client, {
       localRepository: local,
       userId: "user-a",
@@ -137,8 +157,59 @@ describe("SupabaseDataRepository", () => {
     const state = await repository.load();
 
     expect(state.days["2026-07-21"].note).toBe("Cambio sin conexion");
-    expect(client.upserts[0].payload.state.days["2026-07-21"].note).toBe("Cambio sin conexion");
+    expect(client.calls[0].payload.p_state.days["2026-07-21"].note).toBe("Cambio sin conexion");
     expect(local.getPreference("remote-pending-user-a")).toBe("false");
+  });
+
+  it("keeps pending local data when another device has advanced the revision", async () => {
+    const storage = new MemoryStorage();
+    const local = new LocalDataRepository(storage, { userId: "user-a" });
+    local.save(validState("Cambio local"));
+    local.setPreference("remote-pending-user-a", "true");
+    local.setPreference("remote-revision-user-a", "3");
+    const onSyncError = vi.fn();
+    const client = createClient({
+      readData: { state: validState("Cambio remoto"), revision: 4 },
+    });
+    const repository = new SupabaseDataRepository(client, {
+      localRepository: local,
+      userId: "user-a",
+      onSyncError,
+      syncDelay: 0,
+    });
+
+    const state = await repository.load();
+    const notice = repository.consumeNotice();
+
+    expect(state.days["2026-07-21"].note).toBe("Cambio local");
+    expect(client.calls).toHaveLength(0);
+    expect(local.getPreference("remote-pending-user-a")).toBe("true");
+    expect(notice).toEqual(
+      expect.objectContaining({
+        code: "remote-sync-conflict",
+      }),
+    );
+  });
+
+  it("rejects a stale write returned by the atomic save function", async () => {
+    const onSyncError = vi.fn();
+    const client = createClient({
+      writeData: [{ saved: false, revision: 5, updated_at: "2026-07-27T18:00:00Z" }],
+    });
+    const repository = new SupabaseDataRepository(client, {
+      storage: new MemoryStorage(),
+      userId: "user-a",
+      onSyncError,
+      syncDelay: 1000,
+    });
+
+    repository.save(validState("No perder"));
+    const synced = await repository.flush();
+
+    expect(synced).toBe(false);
+    expect(onSyncError).toHaveBeenCalledWith(
+      expect.objectContaining({ code: "remote-sync-conflict", remoteRevision: 5 }),
+    );
   });
 
   it("keeps local data and reports a remote synchronization failure", async () => {
@@ -159,5 +230,36 @@ describe("SupabaseDataRepository", () => {
     expect(onSyncError).toHaveBeenCalledWith(
       expect.objectContaining({ code: "remote-sync-failed" }),
     );
+  });
+
+  it("stores profile photos in the private per-user bucket", async () => {
+    const upload = vi.fn().mockResolvedValue({ error: null });
+    const client = createClient();
+    client.storage = {
+      from(bucket) {
+        expect(bucket).toBe("profile-avatars");
+        return { upload };
+      },
+    };
+    const repository = new SupabaseDataRepository(client, {
+      storage: new MemoryStorage(),
+      userId: "user-a",
+    });
+
+    const result = await repository.storeProfileAvatar("data:image/webp;base64,AAAA");
+
+    expect(upload).toHaveBeenCalledWith(
+      "user-a/avatar.webp",
+      expect.any(globalThis.Blob),
+      expect.objectContaining({
+        contentType: "image/webp",
+        upsert: true,
+      }),
+    );
+    expect(result).toEqual({
+      avatarPath: "user-a/avatar.webp",
+      avatarDataUrl: "",
+      displayUrl: "data:image/webp;base64,AAAA",
+    });
   });
 });
