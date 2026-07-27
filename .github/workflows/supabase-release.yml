@@ -1,0 +1,63 @@
+name: Supabase release
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Environment that will receive the verified migrations
+        required: true
+        type: choice
+        options:
+          - staging
+          - production
+
+permissions:
+  contents: read
+
+concurrency:
+  group: supabase-${{ inputs.target }}
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    name: Migrate ${{ inputs.target }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: ${{ inputs.target }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.101.0
+      - name: Validate protected configuration
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: |
+          test -n "$SUPABASE_ACCESS_TOKEN"
+          test -n "$SUPABASE_PROJECT_REF"
+          test -n "$SUPABASE_DB_PASSWORD"
+      - name: Link selected environment
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: supabase link --project-ref "$SUPABASE_PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
+      - name: Review migration plan
+        env:
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: |
+          supabase migration list --linked
+          supabase db push --linked --include-all --dry-run --password "$SUPABASE_DB_PASSWORD"
+      - name: Apply verified migrations
+        env:
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: supabase db push --linked --include-all --password "$SUPABASE_DB_PASSWORD"
+      - name: Deploy protected account function
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+        run: supabase functions deploy delete-account --project-ref "$SUPABASE_PROJECT_REF" --use-api
+      - name: Verify remote history
+        run: supabase migration list --linked
